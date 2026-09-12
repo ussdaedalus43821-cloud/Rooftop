@@ -8,5 +8,8 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "serve": "http-server . -p 8080 -c-1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
   }
 }
