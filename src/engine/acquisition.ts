@@ -1,5 +1,5 @@
 import type { AllocationTier, Dealership, Vehicle, VehicleModel } from "../types.js";
-import { VEHICLE_MODELS_NEW } from "../constants.js";
+import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
 import { financeAcquisition } from "./financials.js";
@@ -11,15 +11,18 @@ const TIER_DESIRABILITY_CAP: Record<AllocationTier, number> = {
   platinum: 1.01,
 };
 
-const TIER_QUOTA: Record<AllocationTier, number> = {
-  bronze: 10,
-  silver: 18,
-  gold: 26,
-  platinum: 36,
+// Multipliers on a franchise's base (silver-tier) quota — matches the
+// original flat 10/18/26/36 ratios so every brand feels the same swing
+// between tiers, just scaled to that brand's own volume.
+const TIER_QUOTA_MULTIPLIER: Record<AllocationTier, number> = {
+  bronze: 0.56,
+  silver: 1,
+  gold: 1.44,
+  platinum: 2,
 };
 
-export function tierMonthlyAllocationCap(tier: AllocationTier): number {
-  return TIER_QUOTA[tier];
+export function tierMonthlyAllocationCap(baseQuota: number, tier: AllocationTier): number {
+  return Math.max(1, Math.round(baseQuota * TIER_QUOTA_MULTIPLIER[tier]));
 }
 
 function generateVin(rng: Rng): string {
@@ -31,7 +34,8 @@ function generateVin(rng: Rng): string {
 
 export function allocationCatalog(d: Dealership): VehicleModel[] {
   const cap = TIER_DESIRABILITY_CAP[d.manufacturer.tier];
-  return VEHICLE_MODELS_NEW.filter((m) => m.desirability <= cap).map((m) => ({
+  const brandModels = FRANCHISE_CATALOGS[d.manufacturer.franchiseKey];
+  return brandModels.filter((m) => m.desirability <= cap).map((m) => ({
     name: m.name,
     trim: m.trim,
     class: m.class,
@@ -91,7 +95,7 @@ export interface AuctionLot {
 export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLot[] {
   const lots: AuctionLot[] = [];
   for (let i = 0; i < count; i++) {
-    const base = rng.pick(VEHICLE_MODELS_NEW);
+    const base = rng.pick(ALL_FRANCHISE_MODELS);
     const model: VehicleModel = {
       name: base.name,
       trim: base.trim,

@@ -10,6 +10,7 @@ export interface SimDate {
 }
 
 export type VehicleClass = "sedan" | "suv" | "truck" | "coupe" | "minivan" | "ev";
+export type FranchiseKey = "ford" | "chevrolet" | "bmw";
 
 export type VehicleCondition = "new" | "used";
 
@@ -132,6 +133,7 @@ export type AllocationTier = "bronze" | "silver" | "gold" | "platinum";
 
 export interface ManufacturerRelations {
   brand: string;
+  franchiseKey: FranchiseKey;
   tier: AllocationTier;
   quotaUnitsMonthly: number;
   quotaAttainedThisMonth: number;

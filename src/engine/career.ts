@@ -1,5 +1,5 @@
 import type { Dealership, GameState, MonthlyFinancials } from "../types.js";
-import { MONTHS_FOR_OWNERSHIP_OFFER, STRONG_MONTH_SCORE_THRESHOLD, STARTING_CASH } from "../constants.js";
+import { MONTHS_FOR_OWNERSHIP_OFFER, STRONG_MONTH_SCORE_THRESHOLD, getFranchiseOption } from "../constants.js";
 import { createDealership, nextId } from "../state.js";
 import { Rng } from "../rng.js";
 import { totalAssets, totalLiabilities } from "./financials.js";
@@ -63,9 +63,11 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
     // cash — buying in converts it to an equity percentage, not a deposit.
     state.career.bonusPoolAccrued = 0;
   } else {
-    const capital = Math.max(STARTING_CASH * 0.6, state.career.bonusPoolAccrued * 3);
+    const option = getFranchiseOption(d.manufacturer.franchiseKey);
+    const capital = Math.max(option.startingCash * 0.6, state.career.bonusPoolAccrued * 3);
     const newId = nextId("dlr");
-    const newDealership = createDealership(rng, newId, `${rng.pick(["Summit", "Harbor", "Crossroads", "Union", "Cascade"]) } Auto Group`, d.brand, day, capital);
+    const groupName = `${rng.pick(["Summit", "Harbor", "Crossroads", "Union", "Cascade"])} ${option.brand}`;
+    const newDealership = createDealership(rng, newId, groupName, d.manufacturer.franchiseKey, day, capital);
     state.dealerships[newId] = newDealership;
     state.career.role = "owner_operator";
     state.career.equityPct = 1;

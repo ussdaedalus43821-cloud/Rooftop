@@ -1,4 +1,4 @@
-import type { GameState, ClockSpeed } from "../types.js";
+import type { ClockSpeed, FranchiseKey, GameState } from "../types.js";
 import type { AppCtx, TabModule } from "./types.js";
 import { Rng } from "../rng.js";
 import { formatDate } from "../engine/clock.js";
@@ -7,6 +7,7 @@ import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
 import { createNewGame } from "../state.js";
 import { clearSave, saveGame } from "../persistence.js";
+import { FRANCHISE_OPTIONS } from "../constants.js";
 
 import { overviewTab } from "./overview.js";
 import { inventoryTab } from "./inventoryTab.js";
@@ -30,8 +31,13 @@ const TABS: TabModule[] = [
 
 let rootEl: HTMLElement | null = null;
 let ctx: AppCtx | null = null;
+let newGameSetupActive = false;
 
-export function mountApp(root: HTMLElement, state: GameState, rng: Rng, markDirty: () => void): void {
+export function isNewGameSetupActive(): boolean {
+  return newGameSetupActive;
+}
+
+export function mountApp(root: HTMLElement, state: GameState, rng: Rng, markDirty: () => void, forceSetup = false): void {
   rootEl = root;
   ctx = {
     state,
@@ -39,6 +45,7 @@ export function mountApp(root: HTMLElement, state: GameState, rng: Rng, markDirt
     rerender: () => render(),
     markDirty,
   };
+  if (forceSetup) newGameSetupActive = true;
   root.addEventListener("click", onClick);
   root.addEventListener("change", onInput);
   render();
@@ -49,8 +56,33 @@ function activeTabModule(): TabModule {
   return found ?? TABS[0];
 }
 
+function renderFranchisePicker(): string {
+  return `
+  <div class="setup-screen">
+    <div class="setup-box">
+      <div class="setup-logo">ROOFTOP</div>
+      <h1>Pick Your Franchise</h1>
+      <p class="setup-sub">Every deal, invoice, and MSRP in this store is real. Choose the lineup you'll be selling.</p>
+      <div class="franchise-grid">
+        ${FRANCHISE_OPTIONS.map((f) => `
+          <button class="franchise-card" data-action="newgame:pick" data-franchise="${f.key}">
+            <div class="franchise-name">${escapeHtml(f.brand)}</div>
+            <div class="franchise-tagline">${escapeHtml(f.tagline)}</div>
+            <div class="franchise-desc">${escapeHtml(f.description)}</div>
+            <div class="franchise-stats">Starting cash ${money(f.startingCash)} · Allocation cap ${f.baseQuota}/mo</div>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
 export function render(): void {
   if (!rootEl || !ctx) return;
+  if (newGameSetupActive) {
+    rootEl.innerHTML = renderFranchisePicker();
+    return;
+  }
   const state = ctx.state;
   const d = state.dealerships[state.activeDealershipId];
   const inv = totalAssets(d) - totalLiabilities(d);
@@ -167,10 +199,16 @@ function onClick(e: MouseEvent): void {
   }
   if (action === "global:newGame") {
     if (!confirm("Start a brand-new store? This discards the current game.")) return;
+    newGameSetupActive = true;
+    render();
+    return;
+  }
+  if (action === "newgame:pick") {
+    const key = target.getAttribute("data-franchise") as FranchiseKey;
     clearSave();
-    const fresh = createNewGame();
-    ctx.state.version = fresh.version;
+    const fresh = createNewGame(Date.now(), key);
     Object.assign(ctx.state, fresh);
+    newGameSetupActive = false;
     saveGame(ctx.state);
     render();
     return;

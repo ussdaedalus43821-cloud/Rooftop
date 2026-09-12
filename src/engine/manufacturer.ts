@@ -1,5 +1,5 @@
 import type { AllocationTier, Dealership } from "../types.js";
-import { CSI_TERMINATION_THRESHOLD, QUOTA_TERMINATION_MONTHS } from "../constants.js";
+import { CSI_TERMINATION_THRESHOLD, getFranchiseOption, QUOTA_TERMINATION_MONTHS } from "../constants.js";
 import { tierMonthlyAllocationCap } from "./acquisition.js";
 import { postCashExpense } from "./financials.js";
 
@@ -45,9 +45,10 @@ export function monthlyManufacturerCycle(d: Dealership, day: number): void {
 
 function setTier(d: Dealership, tier: AllocationTier, day: number): void {
   if (d.manufacturer.tier === tier) return;
+  const baseQuota = getFranchiseOption(d.manufacturer.franchiseKey).baseQuota;
   d.manufacturer.tier = tier;
-  d.manufacturer.allocationCapMonthly = tierMonthlyAllocationCap(tier);
-  d.manufacturer.quotaUnitsMonthly = Math.round(tierMonthlyAllocationCap(tier) * 0.7);
+  d.manufacturer.allocationCapMonthly = tierMonthlyAllocationCap(baseQuota, tier);
+  d.manufacturer.quotaUnitsMonthly = Math.round(tierMonthlyAllocationCap(baseQuota, tier) * 0.7);
   d.manufacturer.tierHistory.push({ day, tier });
 }
 

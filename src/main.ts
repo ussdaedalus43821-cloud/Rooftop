@@ -3,7 +3,7 @@ import { loadGame, saveGame } from "./persistence.js";
 import { Rng } from "./rng.js";
 import { advanceOneDay } from "./engine/engine.js";
 import { msPerGameDay } from "./engine/clock.js";
-import { mountApp, render } from "./ui/app.js";
+import { isNewGameSetupActive, mountApp, render } from "./ui/app.js";
 import type { GameState } from "./types.js";
 
 const AUTOSAVE_INTERVAL_MS = 8000;
@@ -13,6 +13,7 @@ function boot(): void {
   if (!root) return;
 
   const loaded = loadGame();
+  const isNewPlayer = !loaded;
   const state: GameState = loaded ?? createNewGame();
   const rng = new Rng(state.rngState || state.seed);
 
@@ -21,7 +22,7 @@ function boot(): void {
     dirty = true;
   };
 
-  mountApp(root, state, rng, markDirty);
+  mountApp(root, state, rng, markDirty, isNewPlayer);
 
   let lastFrame = performance.now();
   let lastAutosave = performance.now();
@@ -30,7 +31,7 @@ function boot(): void {
     const elapsed = now - lastFrame;
     lastFrame = now;
 
-    if (state.speed > 0 && !state.gameOver) {
+    if (state.speed > 0 && !state.gameOver && !isNewGameSetupActive()) {
       state.realMsAccumulator += elapsed;
       const perDay = msPerGameDay(state.speed);
       let advanced = false;

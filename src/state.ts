@@ -5,16 +5,15 @@ import {
   CURTAILMENT_INTERVAL_DAYS,
   CURTAILMENT_THRESHOLD_DAYS,
   FLOORPLAN_DAILY_RATE,
-  FRANCHISE_BRAND,
+  getFranchiseOption,
   OVERHEAD_MONTHLY,
   STAFF_FIRST_NAMES,
   STAFF_LAST_NAMES,
-  STARTING_CASH,
-  STARTING_OWNER_EQUITY,
 } from "./constants.js";
 import type {
   CareerState,
   Dealership,
+  FranchiseKey,
   GameSettings,
   GameState,
   MonthlyFinancials,
@@ -68,7 +67,10 @@ function makeStaff(rng: Rng, role: StaffMember["role"], skill: number, salary: n
   };
 }
 
-export function createDealership(rng: Rng, id: string, name: string, brand: string, foundedDay: number, startingCapital: number): Dealership {
+export function createDealership(rng: Rng, id: string, name: string, franchiseKey: FranchiseKey, foundedDay: number, startingCapital?: number): Dealership {
+  const option = getFranchiseOption(franchiseKey);
+  const brand = option.brand;
+  const capital = startingCapital ?? option.startingCash;
   const staff: StaffMember[] = [
     makeStaff(rng, "salesperson", 55, 2400, 0.2),
     makeStaff(rng, "salesperson", 45, 2200, 0.2),
@@ -90,10 +92,11 @@ export function createDealership(rng: Rng, id: string, name: string, brand: stri
     activeCustomers: [],
     manufacturer: {
       brand,
+      franchiseKey,
       tier: "silver",
-      quotaUnitsMonthly: 18,
+      quotaUnitsMonthly: Math.round(option.baseQuota * 0.7),
       quotaAttainedThisMonth: 0,
-      allocationCapMonthly: 18,
+      allocationCapMonthly: option.baseQuota,
       allocationOrderedThisMonth: 0,
       csi: 78,
       facilityStandards: 72,
@@ -136,13 +139,13 @@ export function createDealership(rng: Rng, id: string, name: string, brand: stri
       monthlyPartsGross: 0,
     },
     ledger: {
-      cash: startingCapital,
+      cash: capital,
       vehicleInventoryValue: 0,
       partsInventoryValue: 22000,
       floorPlanPayable: 0,
       accountsPayable: 0,
-      ownerEquityContributed: STARTING_OWNER_EQUITY,
-      retainedEarnings: startingCapital + 22000 - STARTING_OWNER_EQUITY,
+      ownerEquityContributed: option.startingOwnerEquity,
+      retainedEarnings: capital + 22000 - option.startingOwnerEquity,
     },
     monthlyHistory: [],
     currentMonth: emptyMonth("Month 1"),
@@ -172,10 +175,11 @@ function newSettings(): GameSettings {
   };
 }
 
-export function createNewGame(seed: number = Date.now()): GameState {
+export function createNewGame(seed: number = Date.now(), franchiseKey: FranchiseKey = "ford"): GameState {
   const rng = new Rng(seed);
   const dealershipId = nextId("dlr");
-  const dealership = createDealership(rng, dealershipId, `Meridian Point ${FRANCHISE_BRAND}`, FRANCHISE_BRAND, 0, STARTING_CASH);
+  const brand = getFranchiseOption(franchiseKey).brand;
+  const dealership = createDealership(rng, dealershipId, `Meridian Point ${brand}`, franchiseKey, 0);
 
   return {
     version: 1,
