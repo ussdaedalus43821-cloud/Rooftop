@@ -77,6 +77,9 @@ export interface Customer {
   hasTrade: boolean;
   tradeVehicle?: {
     description: string;
+    modelName: string;
+    class: VehicleClass;
+    year: number;
     marketValue: number; // "true" wholesale value, hidden-ish ground truth
     condition: number; // 0-1
   };

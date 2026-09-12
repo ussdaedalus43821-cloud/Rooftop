@@ -1,5 +1,5 @@
 import type { Customer, Deal, Dealership, FourSquareTerms, StaffMember, Vehicle, VehicleClass } from "../types.js";
-import { CUSTOMER_FIRST_NAMES, CUSTOMER_LAST_NAMES } from "../constants.js";
+import { CUSTOMER_FIRST_NAMES, CUSTOMER_LAST_NAMES, TRADE_IN_MODELS } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
 import { unitsOnLot } from "./inventory.js";
@@ -58,11 +58,18 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng): Customer
     creditTier: credit.tier,
     hasTrade,
     tradeVehicle: hasTrade
-      ? {
-          description: `${rng.int(2014, 2022)} trade-in`,
-          marketValue: Math.round(rng.range(3500, 22000)),
-          condition: rng.range(0.3, 0.9),
-        }
+      ? (() => {
+          const model = rng.pick(TRADE_IN_MODELS);
+          const year = rng.int(2014, 2022);
+          return {
+            description: `${year} ${model.name}`,
+            modelName: model.name,
+            class: model.class,
+            year,
+            marketValue: Math.round(rng.range(3500, 22000)),
+            condition: rng.range(0.3, 0.9),
+          };
+        })()
       : undefined,
     interestedModelClass: randomModelClass(d, rng),
     patience: rng.int(2, 4),

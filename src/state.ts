@@ -5,6 +5,7 @@ import {
   CURTAILMENT_INTERVAL_DAYS,
   CURTAILMENT_THRESHOLD_DAYS,
   FLOORPLAN_DAILY_RATE,
+  FRANCHISE_BRAND,
   OVERHEAD_MONTHLY,
   STAFF_FIRST_NAMES,
   STAFF_LAST_NAMES,
@@ -174,7 +175,7 @@ function newSettings(): GameSettings {
 export function createNewGame(seed: number = Date.now()): GameState {
   const rng = new Rng(seed);
   const dealershipId = nextId("dlr");
-  const dealership = createDealership(rng, dealershipId, "Meridian Point Motors", "Meridian Motors", 0, STARTING_CASH);
+  const dealership = createDealership(rng, dealershipId, `Meridian Point ${FRANCHISE_BRAND}`, FRANCHISE_BRAND, 0, STARTING_CASH);
 
   return {
     version: 1,

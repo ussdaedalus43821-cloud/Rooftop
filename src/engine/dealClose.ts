@@ -23,8 +23,17 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
   }
 
   if (deal.customer.hasTrade && deal.customer.tradeVehicle && deal.terms.tradeAllowance > 0) {
-    const tradeModel = vehicle.model; // approximate: trade valued independent of make/model detail
-    createTradeInVehicle(d, tradeModel, Math.round(rng.range(20000, 90000)), deal.terms.tradeAllowance, day, rng);
+    const trade = deal.customer.tradeVehicle;
+    const tradeModel: Vehicle["model"] = {
+      name: trade.modelName,
+      trim: "Trade-In",
+      class: trade.class,
+      msrp: trade.marketValue,
+      invoice: trade.marketValue,
+      desirability: 0.5,
+    };
+    const estimatedOdometer = Math.round((2024 - trade.year) * 12000 + rng.range(-8000, 8000));
+    createTradeInVehicle(d, tradeModel, Math.max(2000, estimatedOdometer), deal.terms.tradeAllowance, day, rng);
   }
 
   const rep = d.staff.find((s) => s.id === deal.salespersonId);
