@@ -1,0 +1,12 @@
+{
+  "name": "rooftop",
+  "version": "1.0.0",
+  "description": "Rooftop — a realistic car dealership simulation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "serve": "http-server . -p 8080 -c-1"
+  }
+}
