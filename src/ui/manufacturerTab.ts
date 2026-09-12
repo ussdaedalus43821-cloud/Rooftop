@@ -1,6 +1,7 @@
 import type { TabModule } from "./types.js";
 import { money, meterClass } from "./format.js";
 import { facilityInvestmentCost, investInFacilityStandards } from "../engine/manufacturer.js";
+import { getFranchiseOption } from "../constants.js";
 import { pushToast } from "../engine/engine.js";
 import { escapeHtml } from "./app.js";
 
@@ -14,7 +15,32 @@ export const manufacturerTab: TabModule = {
   render(ctx) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
     const m = d.manufacturer;
+    const hasNoFranchise = getFranchiseOption(m.franchiseKey).baseQuota === 0;
     const quotaPct = m.quotaUnitsMonthly > 0 ? Math.min(1, m.quotaAttainedThisMonth / m.quotaUnitsMonthly) : 1;
+
+    if (hasNoFranchise) {
+      return `
+        <div class="card">
+          <h3>No Manufacturer Relationship</h3>
+          <p>${escapeHtml(d.brand)} is a used-only, direct-to-consumer operation — there's no franchise agreement, no allocation, and no sales quota. Everything here runs on wholesale sourcing, trade-ins, and reconditioning margin.</p>
+        </div>
+        <div class="grid grid-cols-2">
+          <div class="card">
+            <h3>CSI Score</h3>
+            <div class="big-number ${m.csi < 60 ? "text-bad" : ""}">${Math.round(m.csi)}</div>
+            <div class="meter ${meterClass(m.csi, 75, 55)}" style="margin-top:8px;"><div style="width:${m.csi}%"></div></div>
+          </div>
+          <div class="card">
+            <h3>Facility Standards</h3>
+            <div class="big-number">${Math.round(m.facilityStandards)}</div>
+            <div class="meter ${meterClass(m.facilityStandards, 70, 50)}" style="margin-top:8px;"><div style="width:${m.facilityStandards}%"></div></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" data-action="mfr:investFacility" ${d.ledger.cash < facilityInvestmentCost() ? "disabled" : ""}>Invest (${money(facilityInvestmentCost())})</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
 
     const statusCard = m.terminated ? `
       <div class="card" style="border-color:var(--bad);">

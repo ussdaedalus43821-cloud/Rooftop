@@ -10,7 +10,17 @@ export interface SimDate {
 }
 
 export type VehicleClass = "sedan" | "suv" | "truck" | "coupe" | "minivan" | "ev";
-export type FranchiseKey = "ford" | "chevrolet" | "bmw";
+export type FranchiseCategory = "mainstream" | "value" | "luxury" | "online";
+
+export type FranchiseKey =
+  // mainstream
+  | "toyota" | "ford" | "honda" | "volkswagen" | "mazda" | "subaru" | "hyundai" | "jeep" | "chevrolet"
+  // value / budget
+  | "mitsubishi" | "nissan" | "kia" | "buick" | "dacia" | "byd" | "mg"
+  // luxury
+  | "bmw" | "lexus" | "infiniti" | "cadillac" | "acura" | "genesis" | "mercedes" | "audi" | "landrover"
+  // online-only / direct-to-consumer
+  | "rivian" | "lucid" | "slate" | "tesla" | "carvana";
 
 export type VehicleCondition = "new" | "used";
 

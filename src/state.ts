@@ -71,6 +71,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
   const option = getFranchiseOption(franchiseKey);
   const brand = option.brand;
   const capital = startingCapital ?? option.startingCash;
+  const noFranchise = option.baseQuota === 0; // e.g. Carvana: used-only, no manufacturer relationship at all
   const staff: StaffMember[] = [
     makeStaff(rng, "salesperson", 55, 2400, 0.2),
     makeStaff(rng, "salesperson", 45, 2200, 0.2),
@@ -102,7 +103,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
       facilityStandards: 72,
       complianceStrikes: 0,
       tierHistory: [{ day: foundedDay, tier: "silver" }],
-      terminated: false,
+      terminated: noFranchise,
       monthsBelowThreshold: 0,
     },
     floorPlan: {
@@ -151,7 +152,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
     currentMonth: emptyMonth("Month 1"),
     reputation: 58,
     serviceCustomerBase: 120,
-    isUsedOnly: false,
+    isUsedOnly: noFranchise,
     failure: null,
   };
 }

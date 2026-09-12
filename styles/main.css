@@ -286,16 +286,21 @@ button { font-family: var(--sans); }
   min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px;
 }
 .setup-box { max-width: 920px; width: 100%; text-align: center; }
+.setup-box-narrow { max-width: 460px; }
 .setup-logo { font-weight: 800; font-size: 15px; letter-spacing: 3px; color: var(--text-faint); margin-bottom: 10px; }
 .setup-box h1 { font-size: 30px; margin: 0 0 10px 0; }
 .setup-sub { color: var(--text-dim); font-size: 14px; margin-bottom: 28px; }
-.franchise-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: left; }
-@media (max-width: 800px) { .franchise-grid { grid-template-columns: 1fr; } }
+.setup-box .form-row { text-align: left; margin-bottom: 18px; }
+.setup-box .form-row label { font-size: 13px; }
+.setup-hint { font-size: 12px; color: var(--text-faint); margin-top: 6px; line-height: 1.4; }
 .franchise-card {
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
   cursor: pointer; font-family: var(--sans); display: flex; flex-direction: column; gap: 8px; transition: border-color 0.15s, transform 0.15s;
+  text-align: left;
 }
 .franchise-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.franchise-card-static { cursor: default; margin-bottom: 18px; }
+.franchise-card-static:hover { border-color: var(--border); transform: none; }
 .franchise-name { font-size: 20px; font-weight: 800; color: var(--text); }
 .franchise-tagline { font-size: 12.5px; color: var(--accent); font-weight: 600; }
 .franchise-desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; flex: 1; }

@@ -1,4 +1,4 @@
-import type { ClockSpeed, FranchiseKey, GameState } from "../types.js";
+import type { ClockSpeed, FranchiseCategory, FranchiseKey, GameState } from "../types.js";
 import type { AppCtx, TabModule } from "./types.js";
 import { Rng } from "../rng.js";
 import { formatDate } from "../engine/clock.js";
@@ -7,7 +7,7 @@ import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
 import { createNewGame } from "../state.js";
 import { clearSave, saveGame } from "../persistence.js";
-import { FRANCHISE_OPTIONS } from "../constants.js";
+import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 
 import { overviewTab } from "./overview.js";
 import { inventoryTab } from "./inventoryTab.js";
@@ -32,6 +32,8 @@ const TABS: TabModule[] = [
 let rootEl: HTMLElement | null = null;
 let ctx: AppCtx | null = null;
 let newGameSetupActive = false;
+let pickerCategory: FranchiseCategory | null = null;
+let pickerBrand: FranchiseKey | null = null;
 
 export function isNewGameSetupActive(): boolean {
   return newGameSetupActive;
@@ -57,22 +59,44 @@ function activeTabModule(): TabModule {
 }
 
 function renderFranchisePicker(): string {
+  const brandChoices = pickerCategory ? franchisesInCategory(pickerCategory) : [];
+  const selectedBrand = pickerBrand ? getFranchiseOption(pickerBrand) : null;
+
   return `
   <div class="setup-screen">
-    <div class="setup-box">
+    <div class="setup-box setup-box-narrow">
       <div class="setup-logo">ROOFTOP</div>
-      <h1>Pick Your Franchise</h1>
-      <p class="setup-sub">Every deal, invoice, and MSRP in this store is real. Choose the lineup you'll be selling.</p>
-      <div class="franchise-grid">
-        ${FRANCHISE_OPTIONS.map((f) => `
-          <button class="franchise-card" data-action="newgame:pick" data-franchise="${f.key}">
-            <div class="franchise-name">${escapeHtml(f.brand)}</div>
-            <div class="franchise-tagline">${escapeHtml(f.tagline)}</div>
-            <div class="franchise-desc">${escapeHtml(f.description)}</div>
-            <div class="franchise-stats">Starting cash ${money(f.startingCash)} · Allocation cap ${f.baseQuota}/mo</div>
-          </button>
-        `).join("")}
+      <h1>Set Up Your Store</h1>
+      <p class="setup-sub">Every brand, model, invoice, and MSRP here is real. Two questions and you're on the lot.</p>
+
+      <div class="form-row">
+        <label>What kind of customer base are you looking to serve?</label>
+        <select data-action="newgame:setCategory">
+          <option value="" ${!pickerCategory ? "selected" : ""}>— Select a customer base —</option>
+          ${FRANCHISE_CATEGORIES.map((c) => `<option value="${c.key}" ${pickerCategory === c.key ? "selected" : ""}>${escapeHtml(c.label)}</option>`).join("")}
+        </select>
+        ${pickerCategory ? `<div class="setup-hint">${escapeHtml(FRANCHISE_CATEGORIES.find((c) => c.key === pickerCategory)!.description)}</div>` : ""}
       </div>
+
+      ${pickerCategory ? `
+      <div class="form-row">
+        <label>Which brand?</label>
+        <select data-action="newgame:setBrand">
+          <option value="" ${!pickerBrand ? "selected" : ""}>— Select a brand —</option>
+          ${brandChoices.map((f) => `<option value="${f.key}" ${pickerBrand === f.key ? "selected" : ""}>${escapeHtml(f.brand)}</option>`).join("")}
+        </select>
+      </div>` : ""}
+
+      ${selectedBrand ? `
+      <div class="franchise-card franchise-card-static">
+        <div class="franchise-name">${escapeHtml(selectedBrand.brand)}</div>
+        <div class="franchise-tagline">${escapeHtml(selectedBrand.tagline)}</div>
+        <div class="franchise-desc">${escapeHtml(selectedBrand.description)}</div>
+        <div class="franchise-stats">Starting cash ${money(selectedBrand.startingCash)} · Allocation cap ${selectedBrand.baseQuota}/mo</div>
+      </div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn btn-primary" data-action="newgame:pick" data-franchise="${selectedBrand.key}">Start This Dealership</button>
+      </div>` : ""}
     </div>
   </div>`;
 }
@@ -209,6 +233,8 @@ function onClick(e: MouseEvent): void {
     const fresh = createNewGame(Date.now(), key);
     Object.assign(ctx.state, fresh);
     newGameSetupActive = false;
+    pickerCategory = null;
+    pickerBrand = null;
     saveGame(ctx.state);
     render();
     return;
@@ -225,6 +251,17 @@ function onInput(e: Event): void {
   const target = (e.target as HTMLElement).closest("[data-action]") as HTMLElement | null;
   if (!target || !ctx) return;
   const action = target.getAttribute("data-action")!;
+  if (action === "newgame:setCategory" && target instanceof HTMLSelectElement) {
+    pickerCategory = (target.value || null) as FranchiseCategory | null;
+    pickerBrand = null;
+    render();
+    return;
+  }
+  if (action === "newgame:setBrand" && target instanceof HTMLSelectElement) {
+    pickerBrand = (target.value || null) as FranchiseKey | null;
+    render();
+    return;
+  }
   if (action === "global:switchDealership" && target instanceof HTMLSelectElement) {
     ctx.state.activeDealershipId = target.value;
     render();

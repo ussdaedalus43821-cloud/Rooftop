@@ -12,6 +12,7 @@ import {
 } from "../engine/acquisition.js";
 import { getCurtailmentDue, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
 import { pushToast } from "../engine/engine.js";
+import { getFranchiseOption } from "../constants.js";
 import type { Rng } from "../rng.js";
 
 const lotCache = new Map<string, { day: number; lots: AuctionLot[] }>();
@@ -82,7 +83,8 @@ export const inventoryTab: TabModule = {
 
     const catalog = allocationCatalog(d);
     const remaining = allocationRemainingThisMonth(d);
-    const allocationPanel = d.isUsedOnly ? `<div class="card"><h3>Manufacturer Allocation</h3><p class="text-bad">Franchise terminated — no new-vehicle allocation available. This store is used-only.</p></div>` : `
+    const hasNoFranchise = getFranchiseOption(d.manufacturer.franchiseKey).baseQuota === 0;
+    const allocationPanel = d.isUsedOnly ? `<div class="card"><h3>Manufacturer Allocation</h3><p class="text-bad">${hasNoFranchise ? "No manufacturer relationship — this is a used-only, direct-to-consumer store. All inventory comes from auction and trade-ins." : "Franchise terminated — no new-vehicle allocation available. This store is used-only."}</p></div>` : `
       <div class="card">
         <h3>Manufacturer Allocation — ${remaining}/${d.manufacturer.allocationCapMonthly} remaining this month</h3>
         <div class="table-wrap"><table>
