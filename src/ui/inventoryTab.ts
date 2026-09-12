@@ -35,11 +35,14 @@ const STAGE_LABELS: Record<ReconStage, string> = {
 };
 
 function vehicleCard(v: Vehicle, dueAmount: number): string {
-  const badge = v.stage === "sold"
+  const soldWithExposure = v.stage === "sold" && v.floorPlanBalance > 0;
+  const badge = soldWithExposure
     ? `<span class="badge badge-bad">SOT ${v.soldOutOfTrustDays}d</span>`
-    : dueAmount > 0
-      ? `<span class="badge badge-warn">Curtailment ${money(dueAmount)}</span>`
-      : "";
+    : v.stage === "sold"
+      ? `<span class="badge badge-good">Paid Off</span>`
+      : dueAmount > 0
+        ? `<span class="badge badge-warn">Curtailment ${money(dueAmount)}</span>`
+        : "";
   return `
     <div class="kanban-card">
       <div class="title">${escapeHtml(v.model.name)} ${escapeHtml(v.model.trim)} ${badge}</div>
@@ -49,7 +52,7 @@ function vehicleCard(v: Vehicle, dueAmount: number): string {
         ${v.stage === "listed" ? `<div>List: <input type="number" step="100" style="width:90px;" value="${v.listPrice}" data-action="inventory:setListPrice" data-vehicle="${v.id}" /></div>` : ""}
         ${v.stage === "reconditioning" ? `<div>Recon: ${money(v.reconCost)} / ${money(v.reconCostEstimate)} est.</div>` : ""}
       </div>
-      ${v.stage === "sold" ? `<div class="actions"><button class="btn btn-sm btn-good" data-action="inventory:payoffHeld" data-vehicle="${v.id}">Pay Off Floor-Plan</button></div>` : ""}
+      ${soldWithExposure ? `<div class="actions"><button class="btn btn-sm btn-good" data-action="inventory:payoffHeld" data-vehicle="${v.id}">Pay Off Floor-Plan</button></div>` : ""}
       ${dueAmount > 0 && v.stage !== "sold" ? `<div class="actions"><button class="btn btn-sm btn-warn" data-action="inventory:payCurtailment" data-vehicle="${v.id}">Pay Curtailment ${money(dueAmount)}</button></div>` : ""}
     </div>`;
 }
