@@ -1,6 +1,7 @@
 import type { GameState } from "./types.js";
 
 const SAVE_KEY = "rooftop.save.v1";
+const MAX_SERVICE_QUEUE = 150;
 
 export function saveGame(state: GameState): void {
   try {
@@ -30,6 +31,23 @@ export function loadGame(): GameState | null {
       }
       for (const s of d.staff) {
         if (s.incentivesThisMonth === undefined) s.incentivesThisMonth = 0;
+      }
+      // One-time cleanup for saves from before the service queue was capped:
+      // an unbounded backlog (retained customer base scaling demand forever
+      // against a fixed bay count) could grow into the thousands. Keep the
+      // most-progressed jobs — least sunk cost is what a customer would have
+      // taken elsewhere anyway — and drop the rest.
+      if (d.service.jobs.length > MAX_SERVICE_QUEUE) {
+        const dropped = d.service.jobs.length - MAX_SERVICE_QUEUE;
+        d.service.jobs = [...d.service.jobs]
+          .sort((a, b) => b.hoursCompleted - a.hoursCompleted)
+          .slice(0, MAX_SERVICE_QUEUE);
+        state.toasts.push({
+          id: `migrate_${d.id}_queue`,
+          text: `${d.name}: trimmed ${dropped.toLocaleString()} jobs from an overgrown service backlog — bays are now capacity-capped so this won't happen again.`,
+          kind: "warn",
+          day: state.day,
+        });
       }
     }
     if (!state.acquisitionTargets) state.acquisitionTargets = [];

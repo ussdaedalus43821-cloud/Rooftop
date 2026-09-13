@@ -2,6 +2,7 @@ import type { TabModule } from "./types.js";
 import { money, pct } from "./format.js";
 import { escapeHtml } from "./app.js";
 import { hireStaff, trainStaff, fireStaff, trainCost, hireCost } from "../engine/staffing.js";
+import { bayCost, effectiveBayHours, investInBay, techCapacityHours } from "../engine/service.js";
 import { pushToast } from "../engine/engine.js";
 
 export const serviceTab: TabModule = {
@@ -39,9 +40,26 @@ export const serviceTab: TabModule = {
         </div>
       </div>`;
 
+    const bayHours = effectiveBayHours(d);
+    const techHours = techCapacityHours(d);
+    const techBottlenecked = techHours < bayHours;
+    const bayPanel = `
+      <div class="card">
+        <h3>Bays — ${d.service.bays}</h3>
+        <p class="text-faint" style="font-size:11.5px;">Daily throughput is capped by whichever is smaller: bay-hours or tech-hours. ${techBottlenecked ? "Technician capacity is the bottleneck right now — hiring/training techs will help more than another bay." : "Bay capacity is the bottleneck right now — more bays will help more than another tech."}</p>
+        <div class="grid grid-cols-2">
+          <div><div class="text-faint" style="font-size:11px;">Bay Capacity</div><div class="mono">${bayHours.toFixed(0)} hrs/day</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Tech Capacity</div><div class="mono ${techBottlenecked ? "text-warn" : ""}">${techHours.toFixed(0)} hrs/day</div></div>
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-primary" data-action="service:addBay" ${d.service.bays >= 16 ? "disabled" : ""}>${d.service.bays >= 16 ? "Fully Expanded" : `Add a Bay (${money(bayCost(d))})`}</button>
+        </div>
+      </div>`;
+
     const jobsPanel = `
       <div class="card">
-        <h3>Bay Queue (${jobs.length} jobs — ${customerJobs} customer-pay, ${warrantyJobs} warranty)</h3>
+        <h3>Bay Queue (${jobs.length}/150 jobs — ${customerJobs} customer-pay, ${warrantyJobs} warranty)</h3>
+        <p class="text-faint" style="font-size:11.5px;">Demand beyond a 150-job backlog gets turned away — customers won't wait forever for an opening.</p>
         ${jobs.length === 0 ? '<div class="list-empty">No jobs in the queue right now.</div>' : `
         <table>
           <thead><tr><th>Type</th><th class="num">Hours</th><th class="num">Progress</th><th>Parts</th><th class="num">Rate</th></tr></thead>
@@ -82,7 +100,7 @@ export const serviceTab: TabModule = {
         <p class="text-faint" style="font-size:12px;margin-top:8px;">Retained customer base: ${Math.round(d.serviceCustomerBase)} past buyers. This month: customer-pay ${money(d.service.monthlyCustomerPayGross)}, warranty ${money(d.service.monthlyWarrantyGross)}, parts profit ${money(d.service.monthlyPartsGross)}.</p>
       </div>`;
 
-    return `<div class="grid grid-cols-2">${staffPanel}${jobsPanel}</div><div class="grid grid-cols-2" style="margin-top:14px;">${partsPanel}${retentionPanel}</div>`;
+    return `<div class="grid grid-cols-2">${staffPanel}${bayPanel}</div>${jobsPanel}<div class="grid grid-cols-2" style="margin-top:14px;">${partsPanel}${retentionPanel}</div>`;
   },
   onAction(ctx, action, target) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
@@ -90,6 +108,11 @@ export const serviceTab: TabModule = {
       const role = target.getAttribute("data-role") as any;
       const hired = hireStaff(d, role, ctx.rng);
       pushToast(ctx.state, hired ? `Hired ${hired.name}.` : "Not enough cash to hire.", hired ? "good" : "warn");
+      return true;
+    }
+    if (action === "service:addBay") {
+      const ok = investInBay(d);
+      pushToast(ctx.state, ok ? "Added a service bay." : "Couldn't add a bay — check cash on hand.", ok ? "good" : "warn");
       return true;
     }
     if (action === "service:train") {

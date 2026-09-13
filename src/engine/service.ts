@@ -1,9 +1,19 @@
 import type { Dealership, ServiceBayJob } from "../types.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
-import { postGrossProfit, restockParts } from "./financials.js";
+import { postCashExpense, postGrossProfit, restockParts } from "./financials.js";
 
 const TECH_HOURS_PER_DAY = 7;
+
+// A backlog beyond this is well past anything the shop could realistically
+// work through — customers stop waiting and take the car elsewhere instead
+// of queuing forever, so new demand is turned away above the cap rather than
+// piling up without limit.
+const MAX_SERVICE_QUEUE = 150;
+
+const BASE_BAY_COST = 18000;
+const BAY_COST_GROWTH = 1.2;
+const MAX_BAYS = 16;
 
 export function effectiveBayHours(d: Dealership): number {
   const reconLoad = d.vehicles.filter((v) => v.stage === "reconditioning").length;
@@ -15,7 +25,22 @@ export function techCapacityHours(d: Dealership): number {
   return d.service.techs.reduce((sum, t) => sum + TECH_HOURS_PER_DAY * (0.6 + t.skill / 100), 0);
 }
 
+export function bayCost(d: Dealership): number {
+  return Math.round(BASE_BAY_COST * Math.pow(BAY_COST_GROWTH, d.service.bays - 4));
+}
+
+/** Adds a bay (physical throughput capacity), capped so bay count can't run away from what a real facility could hold. */
+export function investInBay(d: Dealership): boolean {
+  if (d.service.bays >= MAX_BAYS) return false;
+  const cost = bayCost(d);
+  if (d.ledger.cash < cost) return false;
+  postCashExpense(d, cost);
+  d.service.bays += 1;
+  return true;
+}
+
 export function generateDailyServiceJobs(d: Dealership, day: number, rng: Rng): void {
+  if (d.service.jobs.length >= MAX_SERVICE_QUEUE) return;
   const advisorSkill = avgSkill(d.service.advisors, 45);
 
   // Customer-pay demand: driven by the store's own retained customer base
@@ -23,14 +48,14 @@ export function generateDailyServiceJobs(d: Dealership, day: number, rng: Rng): 
   const retentionVisits = d.serviceCustomerBase * d.service.retentionRate * 0.012;
   const walkInVisits = (d.reputation / 100) * 1.4;
   const customerPayCount = Math.max(0, Math.round(rng.gaussian(retentionVisits + walkInVisits, 1)));
-  for (let i = 0; i < customerPayCount; i++) {
+  for (let i = 0; i < customerPayCount && d.service.jobs.length < MAX_SERVICE_QUEUE; i++) {
     d.service.jobs.push(makeJob(d, "customerPay", rng, advisorSkill));
   }
 
   // Warranty work: required of a franchise dealer, billed at the lower
   // manufacturer-set reimbursement rate.
   const warrantyCount = Math.max(0, Math.round(rng.gaussian(unitsSoldRecently(d) * 0.02, 0.6)));
-  for (let i = 0; i < warrantyCount; i++) {
+  for (let i = 0; i < warrantyCount && d.service.jobs.length < MAX_SERVICE_QUEUE; i++) {
     d.service.jobs.push(makeJob(d, "warranty", rng, advisorSkill));
   }
 }
@@ -105,8 +130,15 @@ function finalizeJob(d: Dealership, job: ServiceBayJob): void {
   d.service.monthlyPartsGross += partsProfit;
 }
 
-/** Run once per in-game month: restock toward target and let retention drift with CSI/advisor skill. */
+// Buyers drift away over time — move, switch shops, sell the car — so the
+// retained base settles around a level the store's recent sales pace can
+// actually support instead of climbing forever with every lifetime sale.
+const SERVICE_CUSTOMER_CHURN_RATE = 0.05;
+
+/** Run once per in-game month: restock toward target, let retention drift with CSI/advisor skill, and churn the retained customer base so it doesn't grow unbounded forever. */
 export function monthlyServiceCycle(d: Dealership): void {
+  d.serviceCustomerBase = Math.max(0, Math.round(d.serviceCustomerBase * (1 - SERVICE_CUSTOMER_CHURN_RATE)));
+
   const unitCost = 55;
   const targetValue = d.service.parts.targetStockUnits * unitCost;
   const gap = targetValue - d.ledger.partsInventoryValue;
