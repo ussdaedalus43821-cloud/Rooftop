@@ -119,26 +119,33 @@ export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLo
   return lots;
 }
 
+export function auctionBuyFee(lot: AuctionLot): number {
+  return Math.round(lot.marketValue * 0.02) + 150;
+}
+
 export interface AuctionResult {
   won: boolean;
   finalPrice: number;
+  buyFee: number;
   vehicle?: Vehicle;
 }
 
 export function bidOnAuctionLot(d: Dealership, lot: AuctionLot, bid: number, day: number, rng: Rng): AuctionResult {
   // Competing bids are realistically centered *below* true wholesale value —
   // that's the whole point of a wholesale auction. Bidding at market value
-  // should win nearly every time; bidding under it is a real bargain-hunt
-  // with real risk of losing the lot, not a near-guaranteed overpay.
-  const competitivePrice = lot.marketValue * rng.range(0.6, 1.03);
-  if (bid < lot.minBid) return { won: false, finalPrice: 0 };
+  // should win essentially every time; bidding under it is a real
+  // bargain-hunt with real risk of losing the lot. The ceiling is capped at
+  // market value itself (not above it) so a market-value bid never needs to
+  // be beaten by an overpay just to win.
+  const competitivePrice = lot.marketValue * rng.range(0.55, 1.0);
+  const buyFee = auctionBuyFee(lot);
+  if (bid < lot.minBid) return { won: false, finalPrice: 0, buyFee };
   const won = bid >= competitivePrice;
-  if (!won) return { won: false, finalPrice: 0 };
-  const buyFee = Math.round(lot.marketValue * 0.02) + 150;
+  if (!won) return { won: false, finalPrice: 0, buyFee };
   const v = makeVehicle(lot.model, "used", "auction", day, rng, lot.odometer);
   financeAcquisition(d, v, bid + buyFee);
   d.vehicles.push(v);
-  return { won: true, finalPrice: bid + buyFee, vehicle: v };
+  return { won: true, finalPrice: bid + buyFee, buyFee, vehicle: v };
 }
 
 export function createTradeInVehicle(d: Dealership, model: VehicleModel, odometer: number, appraisedValue: number, day: number, rng: Rng): Vehicle {

@@ -252,8 +252,6 @@ export interface Toast {
   text: string;
   kind: "good" | "bad" | "warn" | "info";
   day: number;
-  createdAtMs: number; // real wall-clock time, used to auto-expire the floating popup
-  dismissed: boolean; // soft-dismissed from the floating stack; still shows in notification history
 }
 
 export interface GameSettings {

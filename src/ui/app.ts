@@ -36,18 +36,8 @@ let pickerCategory: FranchiseCategory | null = null;
 let pickerBrand: FranchiseKey | null = null;
 let notificationsPanelOpen = false;
 
-const TOAST_LIFETIME_MS = 6000;
-const MAX_FLOATING_TOASTS = 3;
-
 export function isNewGameSetupActive(): boolean {
   return newGameSetupActive;
-}
-
-/** True while any floating toast is still on-screen, so the caller knows to keep re-rendering for the countdown. */
-export function hasLiveToasts(): boolean {
-  if (!ctx) return false;
-  const now = Date.now();
-  return ctx.state.toasts.some((t) => !t.dismissed && now - t.createdAtMs < TOAST_LIFETIME_MS);
 }
 
 export function mountApp(root: HTMLElement, state: GameState, rng: Rng, markDirty: () => void, forceSetup = false): void {
@@ -165,25 +155,10 @@ export function render(): void {
     </div>
     <div class="tabbar">${tabsHtml}</div>
     <div class="tab-content">${activeTabModule().render(ctx!)}</div>
-    ${renderFloatingToasts(state)}
     ${notificationsPanelOpen ? renderNotificationPanel(state) : ""}
     ${milestoneHtml}
     ${gameOverHtml}
   `;
-}
-
-function renderFloatingToasts(state: GameState): string {
-  const now = Date.now();
-  const live = state.toasts
-    .filter((t) => !t.dismissed && now - t.createdAtMs < TOAST_LIFETIME_MS)
-    .slice(-MAX_FLOATING_TOASTS)
-    .reverse();
-  if (live.length === 0) return "";
-  return `<div class="toast-stack">${live.map((t) => `
-    <div class="toast ${t.kind}">
-      <span>${escapeHtml(t.text)}</span>
-      <button class="toast-close" data-action="toast:dismiss" data-id="${t.id}" aria-label="Dismiss">&times;</button>
-    </div>`).join("")}</div>`;
 }
 
 function renderNotificationBell(state: GameState): string {
@@ -273,13 +248,6 @@ function onClick(e: MouseEvent): void {
     const choice = target.getAttribute("data-choice") as "equity" | "new_rooftop" | "decline";
     resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng);
     ctx.markDirty();
-    render();
-    return;
-  }
-  if (action === "toast:dismiss") {
-    const id = target.getAttribute("data-id");
-    const toast = ctx.state.toasts.find((t) => t.id === id);
-    if (toast) toast.dismissed = true;
     render();
     return;
   }

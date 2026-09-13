@@ -23,8 +23,6 @@ export function pushToast(state: GameState, text: string, kind: "good" | "bad" |
     text,
     kind,
     day: state.day,
-    createdAtMs: Date.now(),
-    dismissed: false,
   });
   if (state.toasts.length > MAX_TOASTS) state.toasts.splice(0, state.toasts.length - MAX_TOASTS);
 }

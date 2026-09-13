@@ -3,11 +3,10 @@ import { loadGame, saveGame } from "./persistence.js";
 import { Rng } from "./rng.js";
 import { advanceOneDay } from "./engine/engine.js";
 import { msPerGameDay } from "./engine/clock.js";
-import { hasLiveToasts, isNewGameSetupActive, mountApp, render } from "./ui/app.js";
+import { isNewGameSetupActive, mountApp, render } from "./ui/app.js";
 import type { GameState } from "./types.js";
 
 const AUTOSAVE_INTERVAL_MS = 8000;
-const TOAST_HEARTBEAT_MS = 500;
 
 function boot(): void {
   const root = document.getElementById("app");
@@ -27,7 +26,6 @@ function boot(): void {
 
   let lastFrame = performance.now();
   let lastAutosave = performance.now();
-  let lastToastHeartbeat = performance.now();
 
   function frame(now: number): void {
     const elapsed = now - lastFrame;
@@ -50,13 +48,6 @@ function boot(): void {
         dirty = true;
         render();
       }
-    }
-
-    // Floating toasts auto-expire on a real-time clock, so refresh
-    // periodically even when the game is paused/no other state changed.
-    if (now - lastToastHeartbeat > TOAST_HEARTBEAT_MS) {
-      lastToastHeartbeat = now;
-      if (hasLiveToasts()) render();
     }
 
     if (state.settings.autoSaveEnabled && now - lastAutosave > AUTOSAVE_INTERVAL_MS) {

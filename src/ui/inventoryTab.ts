@@ -5,6 +5,7 @@ import { escapeHtml } from "./app.js";
 import {
   allocationCatalog,
   allocationRemainingThisMonth,
+  auctionBuyFee,
   generateAuctionLots,
   orderAllocationUnit,
   bidOnAuctionLot,
@@ -106,14 +107,16 @@ export const inventoryTab: TabModule = {
     const auctionPanel = `
       <div class="card">
         <h3>Wholesale Auction — Today's Lots</h3>
+        <p class="text-faint" style="font-size:11.5px;">A winning bid also carries the auction house's buyer's fee (2% of market value + $150), settled on top of your bid — shown per lot below.</p>
         <div class="table-wrap"><table>
-          <thead><tr><th>Vehicle</th><th class="num">Odometer</th><th class="num">Market Value</th><th class="num">Min Bid</th><th>Your Bid</th><th></th></tr></thead>
+          <thead><tr><th>Vehicle</th><th class="num">Odometer</th><th class="num">Market Value</th><th class="num">Min Bid</th><th class="num">Buyer's Fee</th><th>Your Bid</th><th></th></tr></thead>
           <tbody>
             ${lots.map((lot) => `<tr>
               <td>${escapeHtml(lot.model.name)} ${escapeHtml(lot.model.trim)}</td>
               <td class="num">${lot.odometer.toLocaleString()}</td>
               <td class="num">${money(lot.marketValue)}</td>
               <td class="num">${money(lot.minBid)}</td>
+              <td class="num text-faint">+${money(auctionBuyFee(lot))}</td>
               <td><input type="number" step="100" style="width:100px;" id="bid-${lot.id}" value="${lot.minBid}" /></td>
               <td><button class="btn btn-sm btn-primary" data-action="inventory:bid" data-lot="${lot.id}">Bid</button></td>
             </tr>`).join("")}
@@ -160,7 +163,7 @@ export const inventoryTab: TabModule = {
       const result = bidOnAuctionLot(d, lot, bid, ctx.state.day, ctx.rng);
       if (result.won) {
         lotCache.set(d.id, { day: ctx.state.day, lots: lots.filter((l) => l.id !== lotId) });
-        pushToast(ctx.state, `Won ${lot.model.name} ${lot.model.trim} at auction for ${money(result.finalPrice)}.`, "good");
+        pushToast(ctx.state, `Won ${lot.model.name} ${lot.model.trim}: bid ${money(bid)} + ${money(result.buyFee)} fee = ${money(result.finalPrice)} total.`, "good");
       } else {
         pushToast(ctx.state, `Outbid on the ${lot.model.name} ${lot.model.trim}.`, "warn");
       }

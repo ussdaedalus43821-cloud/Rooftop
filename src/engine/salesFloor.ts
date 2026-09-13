@@ -79,9 +79,14 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng): Customer
 
 export function customerTargetPrice(customer: Customer, vehicle: Vehicle): number {
   if (vehicle.condition === "new") {
-    return vehicle.model.invoice + vehicle.model.msrp * 0.012;
+    // A savvy shopper expects to land somewhere between invoice and
+    // sticker, not literally at dealer cost — split the markup band down
+    // the middle so a normal front-end profit doesn't read as gouging.
+    return vehicle.model.invoice + (vehicle.model.msrp - vehicle.model.invoice) * 0.5;
   }
-  return (vehicle.acquisitionCost + vehicle.reconCost) * 1.04;
+  // Used cars carry a real recon + margin expectation, not a razor-thin
+  // 4% over cost.
+  return (vehicle.acquisitionCost + vehicle.reconCost) * 1.12;
 }
 
 function leastBusySalesperson(d: Dealership): StaffMember | null {
