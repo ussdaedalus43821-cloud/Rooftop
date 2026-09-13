@@ -20,6 +20,25 @@ const BASE_SALARY: Record<SalesRole, number> = {
 
 const TRAIN_COST = 1800;
 
+// Staff get better just by working the job, not only through paid training —
+// otherwise a starting or freshly-hired employee is permanently stuck at
+// whatever mediocre roll they started with unless you keep paying to train
+// them by hand. Natural growth tops out short of elite so training still has
+// real value for pushing a team into the 90s quickly.
+const EXPERIENCE_SKILL_GAIN_PER_MONTH = 1.5;
+const EXPERIENCE_SKILL_CAP = 88;
+
+/** Run once per in-game month: on-the-job skill growth, and reset the MTD deal/gross counters (previously never reset — they were quietly lifetime totals). */
+export function applyMonthlyStaffCycle(d: Dealership): void {
+  for (const s of d.staff) {
+    if (s.skill < EXPERIENCE_SKILL_CAP) {
+      s.skill = Math.min(EXPERIENCE_SKILL_CAP, s.skill + EXPERIENCE_SKILL_GAIN_PER_MONTH);
+    }
+    s.dealsThisMonth = 0;
+    s.grossThisMonth = 0;
+  }
+}
+
 export function hireStaff(d: Dealership, role: SalesRole, rng: Rng): StaffMember | null {
   const cost = HIRE_COST[role];
   if (d.ledger.cash < cost) return null;

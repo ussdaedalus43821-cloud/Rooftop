@@ -8,6 +8,7 @@ import { autoRunFi } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
+import { applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
   payAccruedPayroll,
@@ -38,6 +39,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   if (d.failure) return;
 
   accruePayrollDaily(d);
+  for (const s of d.staff) s.experienceDays += 1;
   tickInventoryDaily(d, state.day, rng);
   generateDailyServiceJobs(d, state.day, rng);
   processServiceJobs(d, state.day, rng);
@@ -126,6 +128,7 @@ function finalizeMonth(state: GameState, d: Dealership): void {
 
   monthlyManufacturerCycle(d, state.day);
   monthlyServiceCycle(d);
+  applyMonthlyStaffCycle(d);
 
   for (const stat of Object.values(d.modelStats)) {
     stat.unitsSoldLastMonth = stat.unitsSoldThisMonth;

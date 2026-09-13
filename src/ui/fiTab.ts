@@ -105,6 +105,7 @@ export const fiTab: TabModule = {
           </button>
         </div>
         <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, your F&amp;I manager sets the markup and pitches every product on their own each day using their skill — more skilled managers push the reserve harder. Turn it off to run the desk by hand again.</p>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">Skill grows on its own the longer someone's on staff (up to a point) — training just gets them there faster, and is the only way past that point.</p>
         <table>
           <thead><tr><th>Name</th><th class="num">Skill</th><th class="num">Deals MTD</th><th class="num">Gross MTD</th><th></th></tr></thead>
           <tbody>

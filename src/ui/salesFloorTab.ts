@@ -144,6 +144,7 @@ export const salesFloorTab: TabModule = {
           </button>
         </div>
         <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, your salespeople price and negotiate ups on their own each day using their skill — more skilled reps push closer to the customer's ceiling for more gross. Turn it off to work deals by hand again.</p>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">Skill grows on its own the longer someone's on staff (up to a point) — training just gets them there faster, and is the only way past that point.</p>
         <table>
           <thead><tr><th>Name</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Deals MTD</th><th class="num">Gross MTD</th><th></th></tr></thead>
           <tbody>

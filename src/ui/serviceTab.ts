@@ -16,6 +16,7 @@ export const serviceTab: TabModule = {
     const staffPanel = `
       <div class="card">
         <h3>Technicians &amp; Advisors</h3>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">Skill grows on its own the longer someone's on staff (up to a point) — training just gets them there faster, and is the only way past that point.</p>
         <table>
           <thead><tr><th>Name</th><th>Role</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Salary/mo</th><th></th></tr></thead>
           <tbody>
