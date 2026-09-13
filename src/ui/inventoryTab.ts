@@ -6,25 +6,13 @@ import {
   allocationCatalog,
   allocationRemainingThisMonth,
   auctionBuyFee,
-  generateAuctionLots,
+  auctionLotsForToday,
   orderAllocationUnit,
   bidOnAuctionLot,
-  type AuctionLot,
 } from "../engine/acquisition.js";
 import { getCurtailmentDue, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
 import { pushToast } from "../engine/engine.js";
 import { getFranchiseOption } from "../constants.js";
-import type { Rng } from "../rng.js";
-
-const lotCache = new Map<string, { day: number; lots: AuctionLot[] }>();
-
-function getLotsForToday(dealershipId: string, day: number, rng: Rng): AuctionLot[] {
-  const cached = lotCache.get(dealershipId);
-  if (cached && cached.day === day) return cached.lots;
-  const lots = generateAuctionLots(rng, day, 5);
-  lotCache.set(dealershipId, { day, lots });
-  return lots;
-}
 
 const STAGE_LABELS: Record<ReconStage, string> = {
   acquired: "Acquired",
@@ -103,11 +91,23 @@ export const inventoryTab: TabModule = {
         </table></div>
       </div>`;
 
-    const lots = getLotsForToday(d.id, ctx.state.day, ctx.rng);
+    const lots = auctionLotsForToday(d, ctx.state.day, ctx.rng);
+    const discountPct = d.auctionAutoBidDiscountPct;
     const auctionPanel = `
       <div class="card">
         <h3>Wholesale Auction — Today's Lots</h3>
         <p class="text-faint" style="font-size:11.5px;">A winning bid also carries the auction house's buyer's fee (2% of market value + $150), settled on top of your bid — shown per lot below.</p>
+        <div class="btn-row" style="margin-bottom:10px;">
+          <button class="btn ${d.autoPilot.auction ? "btn-good" : ""}" data-action="inventory:toggleAuctionAutoPilot">
+            Auto-Pilot: ${d.autoPilot.auction ? "ON — bidding for you every day" : "OFF — you bid yourself"}
+          </button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
+            Bid up to
+            <input type="number" min="0" max="40" step="1" style="width:60px;" value="${discountPct}" data-action="inventory:setAuctionDiscount" />
+            % below market
+          </label>
+        </div>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, auto-pilot bids ${discountPct}% below each lot's market value once per day — skipping any lot where that bid falls below the house's minimum. Lower the discount to win more often; raise it to hold out for a bigger bargain.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Vehicle</th><th class="num">Odometer</th><th class="num">Market Value</th><th class="num">Min Bid</th><th class="num">Buyer's Fee</th><th>Your Bid</th><th></th></tr></thead>
           <tbody>
@@ -117,8 +117,8 @@ export const inventoryTab: TabModule = {
               <td class="num">${money(lot.marketValue)}</td>
               <td class="num">${money(lot.minBid)}</td>
               <td class="num text-faint">+${money(auctionBuyFee(lot))}</td>
-              <td><input type="number" step="100" style="width:100px;" id="bid-${lot.id}" value="${lot.minBid}" /></td>
-              <td><button class="btn btn-sm btn-primary" data-action="inventory:bid" data-lot="${lot.id}">Bid</button></td>
+              <td><input type="number" step="100" style="width:100px;" id="bid-${lot.id}" value="${lot.minBid}" ${d.autoPilot.auction ? "disabled" : ""} /></td>
+              <td><button class="btn btn-sm btn-primary" data-action="inventory:bid" data-lot="${lot.id}" ${d.autoPilot.auction ? "disabled" : ""}>Bid</button></td>
             </tr>`).join("")}
           </tbody>
         </table></div>
@@ -156,17 +156,21 @@ export const inventoryTab: TabModule = {
     if (action === "inventory:bid") {
       const lotId = target.getAttribute("data-lot")!;
       const input = document.getElementById(`bid-${lotId}`) as HTMLInputElement | null;
-      const lots = getLotsForToday(d.id, ctx.state.day, ctx.rng);
+      const lots = auctionLotsForToday(d, ctx.state.day, ctx.rng);
       const lot = lots.find((l) => l.id === lotId);
       if (!lot || !input) return false;
       const bid = Number(input.value);
       const result = bidOnAuctionLot(d, lot, bid, ctx.state.day, ctx.rng);
       if (result.won) {
-        lotCache.set(d.id, { day: ctx.state.day, lots: lots.filter((l) => l.id !== lotId) });
+        d.auctionLots = d.auctionLots.filter((l) => l.id !== lotId);
         pushToast(ctx.state, `Won ${lot.model.name} ${lot.model.trim}: bid ${money(bid)} + ${money(result.buyFee)} fee = ${money(result.finalPrice)} total.`, "good");
       } else {
         pushToast(ctx.state, `Outbid on the ${lot.model.name} ${lot.model.trim}.`, "warn");
       }
+      return true;
+    }
+    if (action === "inventory:toggleAuctionAutoPilot") {
+      d.autoPilot.auction = !d.autoPilot.auction;
       return true;
     }
     if (action === "inventory:payCurtailment") {
@@ -196,6 +200,10 @@ export const inventoryTab: TabModule = {
       const v = d.vehicles.find((x) => x.id === vid);
       if (!v) return false;
       v.listPrice = Math.max(0, Number(target.value) || 0);
+      return false; // avoid re-render fighting the user's typing/focus
+    }
+    if (action === "inventory:setAuctionDiscount" && target instanceof HTMLInputElement) {
+      d.auctionAutoBidDiscountPct = Math.max(0, Math.min(40, Number(target.value) || 0));
       return false; // avoid re-render fighting the user's typing/focus
     }
     return false;

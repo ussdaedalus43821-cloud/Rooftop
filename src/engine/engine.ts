@@ -5,6 +5,7 @@ import { tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
 import { autoRunFi } from "./fi.js";
+import { autoBidAuctionLots } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
 import {
@@ -40,6 +41,15 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   tickInventoryDaily(d, state.day, rng);
   generateDailyServiceJobs(d, state.day, rng);
   processServiceJobs(d, state.day, rng);
+
+  if (d.autoPilot.auction) {
+    const won = autoBidAuctionLots(d, state.day, rng);
+    for (const result of won) {
+      if (result.vehicle) {
+        pushToast(state, `Auto-bought ${result.vehicle.model.name} ${result.vehicle.model.trim} at auction for $${Math.round(result.finalPrice).toLocaleString()}.`, "good");
+      }
+    }
+  }
 
   const ups = dailyUpCount(d, rng);
   for (let i = 0; i < ups; i++) {

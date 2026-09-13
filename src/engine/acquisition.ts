@@ -1,4 +1,4 @@
-import type { AllocationTier, Dealership, Vehicle, VehicleModel } from "../types.js";
+import type { AllocationTier, AuctionLot, Dealership, Vehicle, VehicleModel } from "../types.js";
 import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
@@ -83,15 +83,6 @@ export function orderAllocationUnit(d: Dealership, model: VehicleModel, day: num
   return v;
 }
 
-export interface AuctionLot {
-  id: string;
-  model: VehicleModel;
-  odometer: number;
-  conditionScore: number; // 0-1
-  marketValue: number; // "true" wholesale value
-  minBid: number;
-}
-
 export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLot[] {
   const lots: AuctionLot[] = [];
   for (let i = 0; i < count; i++) {
@@ -123,6 +114,20 @@ export function auctionBuyFee(lot: AuctionLot): number {
   return Math.round(lot.marketValue * 0.02) + 150;
 }
 
+/**
+ * Today's wholesale lots, generated once per game day and cached on the
+ * dealership itself (not a UI-local cache) so the auction auto-pilot and
+ * the manual Inventory screen always see — and consume from — the same
+ * batch, whichever one touches it first.
+ */
+export function auctionLotsForToday(d: Dealership, day: number, rng: Rng): AuctionLot[] {
+  if (d.auctionLotsDay !== day) {
+    d.auctionLots = generateAuctionLots(rng, day, 5);
+    d.auctionLotsDay = day;
+  }
+  return d.auctionLots;
+}
+
 export interface AuctionResult {
   won: boolean;
   finalPrice: number;
@@ -146,6 +151,27 @@ export function bidOnAuctionLot(d: Dealership, lot: AuctionLot, bid: number, day
   financeAcquisition(d, v, bid + buyFee);
   d.vehicles.push(v);
   return { won: true, finalPrice: bid + buyFee, buyFee, vehicle: v };
+}
+
+/**
+ * Bid on every remaining lot in today's auction at the player's chosen
+ * discount off market value, capped at what the house will even accept
+ * (minBid). A lot the discount prices below minBid is skipped outright —
+ * auto-pilot won't chase a lot outside the player's own risk tolerance.
+ */
+export function autoBidAuctionLots(d: Dealership, day: number, rng: Rng): AuctionResult[] {
+  const lots = auctionLotsForToday(d, day, rng);
+  const results: AuctionResult[] = [];
+  for (const lot of [...lots]) {
+    const targetBid = Math.round(lot.marketValue * (1 - d.auctionAutoBidDiscountPct / 100));
+    if (targetBid < lot.minBid) continue;
+    const result = bidOnAuctionLot(d, lot, targetBid, day, rng);
+    if (result.won) {
+      d.auctionLots = d.auctionLots.filter((l) => l.id !== lot.id);
+      results.push(result);
+    }
+  }
+  return results;
 }
 
 export function createTradeInVehicle(d: Dealership, model: VehicleModel, odometer: number, appraisedValue: number, day: number, rng: Rng): Vehicle {

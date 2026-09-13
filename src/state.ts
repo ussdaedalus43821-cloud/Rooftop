@@ -154,7 +154,10 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
     serviceCustomerBase: 120,
     isUsedOnly: noFranchise,
     failure: null,
-    autoPilot: { sales: false, fi: false },
+    autoPilot: { sales: false, fi: false, auction: false },
+    auctionAutoBidDiscountPct: 10,
+    auctionLots: [],
+    auctionLotsDay: -1,
   };
 }
 

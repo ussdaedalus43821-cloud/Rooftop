@@ -64,6 +64,15 @@ export interface Vehicle {
   source: "allocation" | "auction" | "tradein";
 }
 
+export interface AuctionLot {
+  id: string;
+  model: VehicleModel;
+  odometer: number;
+  conditionScore: number; // 0-1
+  marketValue: number; // "true" wholesale value
+  minBid: number;
+}
+
 export type SalesRole = "salesperson" | "fi_manager" | "service_tech" | "service_advisor";
 
 export interface StaffMember {
@@ -277,7 +286,10 @@ export interface Dealership {
   serviceCustomerBase: number; // count of past buyers eligible for retention
   isUsedOnly: boolean; // true after franchise termination
   failure: FailureKind;
-  autoPilot: { sales: boolean; fi: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input
+  autoPilot: { sales: boolean; fi: boolean; auction: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input
+  auctionAutoBidDiscountPct: number; // 0-40, how far below market value the auction auto-pilot is willing to bid
+  auctionLots: AuctionLot[]; // today's wholesale auction lots, cached here so auto-pilot and the manual UI see/consume the same batch
+  auctionLotsDay: number; // the game day auctionLots was generated for
 }
 
 export interface GameState {

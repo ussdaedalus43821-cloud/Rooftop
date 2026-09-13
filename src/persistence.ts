@@ -17,7 +17,11 @@ export function loadGame(): GameState | null {
     if (!raw) return null;
     const state = JSON.parse(raw) as GameState;
     for (const d of Object.values(state.dealerships)) {
-      if (!d.autoPilot) d.autoPilot = { sales: false, fi: false };
+      if (!d.autoPilot) d.autoPilot = { sales: false, fi: false, auction: false };
+      if (d.autoPilot.auction === undefined) d.autoPilot.auction = false;
+      if (d.auctionAutoBidDiscountPct === undefined) d.auctionAutoBidDiscountPct = 10;
+      if (!d.auctionLots) d.auctionLots = [];
+      if (d.auctionLotsDay === undefined) d.auctionLotsDay = -1;
     }
     return state;
   } catch (err) {
