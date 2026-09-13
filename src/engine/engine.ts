@@ -9,6 +9,7 @@ import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
+import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
 import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -107,7 +108,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   }
 }
 
-function finalizeMonth(state: GameState, d: Dealership): void {
+function finalizeMonth(state: GameState, d: Dealership): number {
   const overhead = OVERHEAD_MONTHLY;
   postCashExpense(d, overhead);
   d.currentMonth.overheadExpense = overhead;
@@ -142,7 +143,7 @@ function finalizeMonth(state: GameState, d: Dealership): void {
   if (d.monthlyHistory.length > 36) d.monthlyHistory.shift();
 
   monthlyManufacturerCycle(d, state.day);
-  monthlyServiceCycle(d);
+  const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
 
   for (const stat of Object.values(d.modelStats)) {
@@ -168,6 +169,8 @@ function finalizeMonth(state: GameState, d: Dealership): void {
     unitsSoldUsed: 0,
     csiAvgScore: d.manufacturer.csi,
   };
+
+  return unitsRestocked;
 }
 
 export function advanceOneDay(state: GameState, rng: Rng): void {
@@ -178,9 +181,10 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
   }
 
   if (isNewMonth(state.day)) {
+    let groupUnitsRestocked = 0;
     for (const id of Object.keys(state.dealerships)) {
       const d = state.dealerships[id];
-      finalizeMonth(state, d);
+      groupUnitsRestocked += finalizeMonth(state, d);
       const justFinalized = d.monthlyHistory[d.monthlyHistory.length - 1];
       pushToast(
         state,
@@ -196,6 +200,11 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     const captiveInterest = monthlyCaptiveLenderCycle(state);
     if (captiveInterest > 0) {
       pushToast(state, `Captive Lender: $${Math.round(captiveInterest).toLocaleString()} interest income earned on your $${Math.round(state.captiveLender.portfolioPrincipal).toLocaleString()} loan portfolio.`, "good");
+    }
+
+    monthlyPartsWarehouseCycle(state, groupUnitsRestocked);
+    if (state.partsWarehouse.chartered && (state.partsWarehouse.lastMonthExternalProfit > 0 || state.partsWarehouse.lastMonthInternalSavings > 0)) {
+      pushToast(state, `Parts Warehouse: saved your group $${Math.round(state.partsWarehouse.lastMonthInternalSavings).toLocaleString()} on restocking and earned $${Math.round(state.partsWarehouse.lastMonthExternalProfit).toLocaleString()} distributing to outside shops.`, "good");
     }
   }
 

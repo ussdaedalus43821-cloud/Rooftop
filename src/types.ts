@@ -338,6 +338,19 @@ export interface CaptiveLenderState {
   lifetimeOriginationVolume: number;
 }
 
+export interface PartsWarehouseState {
+  chartered: boolean;
+  charterDay: number;
+  cash: number; // retained external distribution profit, swept to the Group Treasury manually
+  throughputCapacity: number; // units/month it can move, investable like a service bay
+  lastMonthInternalUnits: number; // units supplied to the group's own stores this month, at a discount off retail
+  lastMonthInternalSavings: number; // $ the group's stores kept by buying from the warehouse instead of retail
+  lastMonthExternalUnits: number; // leftover capacity sold to outside shops, the warehouse's own profit center
+  lastMonthExternalProfit: number;
+  lifetimeInternalSavings: number;
+  lifetimeExternalProfit: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -357,4 +370,5 @@ export interface GameState {
   acquisitionTargetsMonth: number; // the monthIndex() acquisitionTargets was generated for
   groupTreasury: number; // cash pooled across all owned dealerships, outside any single store's own books
   captiveLender: CaptiveLenderState;
+  partsWarehouse: PartsWarehouseState;
 }

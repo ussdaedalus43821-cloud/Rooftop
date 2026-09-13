@@ -13,14 +13,15 @@ export const financialsTab: TabModule = {
     const career = ctx.state.career;
 
     const lender = ctx.state.captiveLender;
+    const warehouse = ctx.state.partsWarehouse;
     const groupNetWorth = Object.values(ctx.state.dealerships).reduce((sum, x) => sum + (totalAssets(x) - totalLiabilities(x)), 0)
-      + ctx.state.groupTreasury + lender.cash + lender.portfolioPrincipal;
+      + ctx.state.groupTreasury + lender.cash + lender.portfolioPrincipal + warehouse.cash;
     const standing = netWorthStanding(groupNetWorth);
     const empireCard = `
       <div class="card">
         <h3>Empire Standing</h3>
         <div class="big-number">${standing.tier.title}</div>
-        <div class="sub">Group net worth (all rooftops + treasury + captive lender): ${money(groupNetWorth)}</div>
+        <div class="sub">Group net worth (all rooftops, treasury, captive lender &amp; warehouse): ${money(groupNetWorth)}</div>
         ${standing.next ? `
         <div class="meter" style="margin-top:8px;"><div style="width:${Math.round(standing.progressToNext * 100)}%"></div></div>
         <div class="sub" style="margin-top:4px;">${money(standing.next.threshold - groupNetWorth > 0 ? standing.next.threshold - groupNetWorth : 0)} to reach "${standing.next.title}"</div>

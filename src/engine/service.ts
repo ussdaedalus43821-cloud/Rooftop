@@ -135,15 +135,27 @@ function finalizeJob(d: Dealership, job: ServiceBayJob): void {
 // actually support instead of climbing forever with every lifetime sale.
 const SERVICE_CUSTOMER_CHURN_RATE = 0.05;
 
-/** Run once per in-game month: restock toward target, let retention drift with CSI/advisor skill, and churn the retained customer base so it doesn't grow unbounded forever. */
-export function monthlyServiceCycle(d: Dealership): void {
+export const RETAIL_PARTS_UNIT_COST = 55;
+
+/**
+ * Run once per in-game month: restock toward target, let retention drift
+ * with CSI/advisor skill, and churn the retained customer base so it
+ * doesn't grow unbounded forever. `unitCost` defaults to retail price but a
+ * chartered Parts Warehouse supplies the whole group cheaper — see
+ * captiveLender.js's sibling, partsWarehouse.js. Returns the units actually
+ * restocked this month, which the warehouse's own cycle needs to know how
+ * much of its capacity the group consumed internally.
+ */
+export function monthlyServiceCycle(d: Dealership, unitCost: number = RETAIL_PARTS_UNIT_COST): number {
   d.serviceCustomerBase = Math.max(0, Math.round(d.serviceCustomerBase * (1 - SERVICE_CUSTOMER_CHURN_RATE)));
 
-  const unitCost = 55;
   const targetValue = d.service.parts.targetStockUnits * unitCost;
   const gap = targetValue - d.ledger.partsInventoryValue;
+  let unitsRestocked = 0;
   if (gap > 0) {
-    restockParts(d, Math.min(gap, d.ledger.cash * 0.4));
+    const spend = Math.min(gap, d.ledger.cash * 0.4);
+    restockParts(d, spend);
+    unitsRestocked = spend / unitCost;
   }
   d.service.parts.fillRate = Math.max(0.4, Math.min(0.97, d.service.parts.targetStockUnits / 650));
 
@@ -153,6 +165,8 @@ export function monthlyServiceCycle(d: Dealership): void {
   d.service.monthlyCustomerPayGross = 0;
   d.service.monthlyWarrantyGross = 0;
   d.service.monthlyPartsGross = 0;
+
+  return unitsRestocked;
 }
 
 function clamp(v: number, min: number, max: number): number {

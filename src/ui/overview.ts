@@ -16,6 +16,15 @@ import {
   type FundingSource,
 } from "../engine/expansion.js";
 import { charterCaptiveLender, charterCaptiveLenderCost, sweepCaptiveLenderCash, type CaptiveLenderFunding } from "../engine/captiveLender.js";
+import {
+  charterPartsWarehouse,
+  charterPartsWarehouseCost,
+  sweepPartsWarehouseCash,
+  investInWarehouseCapacity,
+  capacityUpgradeCost,
+  capacityUpgradeMaxed,
+  type PartsWarehouseFunding,
+} from "../engine/partsWarehouse.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -25,6 +34,7 @@ let buildCategory: FranchiseCategory | null = null;
 let buildBrand: FranchiseKey | null = null;
 let buildFunding: FundingSource = "active";
 let captiveLenderFunding: CaptiveLenderFunding = "active";
+let warehouseFunding: PartsWarehouseFunding = "active";
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -153,6 +163,51 @@ export const overviewTab: TabModule = {
       </div>`;
     })();
 
+    const partsWarehouseCard = ctx.state.career.role === "gm" ? "" : (() => {
+      const wh = ctx.state.partsWarehouse;
+      const cost = charterPartsWarehouseCost();
+      if (!wh.chartered) {
+        const affordable = warehouseFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost;
+        return `
+        <div class="card">
+          <h3>Parts Warehouse</h3>
+          <p class="text-faint" style="font-size:11.5px;">Every store in your group restocks parts at retail price right now. Charter a distribution warehouse and every rooftop buys wholesale instead — a real, ongoing savings that scales with how many stores you own — and whatever capacity your group doesn't use gets sold to outside shops for pure profit.</p>
+          <p style="font-size:12.5px;">Charter cost: <strong>${money(cost)}</strong></p>
+          <div class="form-row">
+            <label>Pay from:</label>
+            <select data-action="overview:warehouseFundingSource">
+              <option value="active" ${warehouseFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+              <option value="treasury" ${warehouseFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" data-action="overview:charterPartsWarehouse" ${affordable ? "" : "disabled"}>Charter A Parts Warehouse</button>
+          </div>
+        </div>`;
+      }
+      const upgradeCost = capacityUpgradeCost(ctx.state);
+      const maxed = capacityUpgradeMaxed(ctx.state);
+      return `
+      <div class="card">
+        <h3>Parts Warehouse</h3>
+        <div class="grid grid-cols-3">
+          <div><div class="text-faint" style="font-size:11px;">Monthly Throughput</div><div class="mono">${wh.throughputCapacity.toLocaleString()} units</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Group Savings Last Month</div><div class="mono text-good">${money(wh.lastMonthInternalSavings)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Uncollected Cash</div><div class="mono text-good">${money(wh.cash)}</div></div>
+        </div>
+        <div class="grid grid-cols-3" style="margin-top:10px;">
+          <div><div class="text-faint" style="font-size:11px;">External Sales Last Month</div><div class="mono">${Math.round(wh.lastMonthExternalUnits).toLocaleString()} units</div></div>
+          <div><div class="text-faint" style="font-size:11px;">External Profit Last Month</div><div class="mono text-good">${money(wh.lastMonthExternalProfit)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Lifetime Savings + Profit</div><div class="mono">${money(wh.lifetimeInternalSavings + wh.lifetimeExternalProfit)}</div></div>
+        </div>
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">Your group's own restocking gets first call on capacity at a discount; anything left over sells outside for profit. More throughput means more of both.</p>
+        <div class="btn-row">
+          <button class="btn btn-sm" data-action="overview:investWarehouseCapacity" ${maxed || d.ledger.cash < upgradeCost ? "disabled" : ""}>${maxed ? "Max Capacity Reached" : `Add ${(500).toLocaleString()} Units/mo (${money(upgradeCost)}, from ${escapeHtml(d.name)})`}</button>
+          <button class="btn btn-sm btn-primary" data-action="overview:sweepPartsWarehouse" ${wh.cash <= 0 ? "disabled" : ""}>Sweep ${money(wh.cash)} To Treasury</button>
+        </div>
+      </div>`;
+    })();
+
     const expansionCard = ctx.state.career.role === "gm" ? "" : (() => {
       const targets = acquisitionTargetsForMonth(ctx.state, ctx.rng);
       return `
@@ -233,6 +288,7 @@ export const overviewTab: TabModule = {
       ${groupCard}
       ${treasuryCard}
       ${captiveLenderCard}
+      ${partsWarehouseCard}
       ${expansionCard}
       ${buildRooftopCard}
     `;
@@ -274,6 +330,21 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
       return true;
     }
+    if (action === "overview:charterPartsWarehouse") {
+      const result = charterPartsWarehouse(ctx.state, warehouseFunding, ctx.state.activeDealershipId);
+      pushToast(ctx.state, result.ok ? "Parts Warehouse chartered — every store now restocks at wholesale." : (result.reason ?? "Couldn't charter a parts warehouse."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:investWarehouseCapacity") {
+      const ok = investInWarehouseCapacity(ctx.state, ctx.state.activeDealershipId);
+      pushToast(ctx.state, ok ? "Warehouse capacity expanded." : "Couldn't expand capacity.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:sweepPartsWarehouse") {
+      const amount = sweepPartsWarehouseCash(ctx.state);
+      pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
+      return true;
+    }
     if (action === "overview:buildRooftop") {
       if (!buildBrand) return false;
       const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
@@ -289,6 +360,10 @@ export const overviewTab: TabModule = {
   onInput(ctx, action, target) {
     if (action === "overview:captiveFundingSource" && target instanceof HTMLSelectElement) {
       captiveLenderFunding = target.value as CaptiveLenderFunding;
+      return true;
+    }
+    if (action === "overview:warehouseFundingSource" && target instanceof HTMLSelectElement) {
+      warehouseFunding = target.value as PartsWarehouseFunding;
       return true;
     }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {
