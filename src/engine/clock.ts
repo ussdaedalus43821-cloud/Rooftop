@@ -60,3 +60,9 @@ export function monthLabel(day: number): string {
 export function isNewMonth(day: number): boolean {
   return toCalendarDate(day).isFirstOfMonth;
 }
+
+/** A single increasing number identifying the calendar month a day falls in, for "refresh once a month" caches. */
+export function monthIndex(day: number): number {
+  const d = toCalendarDate(day);
+  return d.year * 12 + d.month;
+}

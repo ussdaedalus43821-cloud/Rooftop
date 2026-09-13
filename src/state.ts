@@ -202,6 +202,8 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     toasts: [],
     gameOver: null,
     lastSavedDay: 0,
+    acquisitionTargets: [],
+    acquisitionTargetsMonth: -1,
   };
 }
 

@@ -306,6 +306,19 @@ export interface Dealership {
   modelStats: Record<string, ModelSalesStat>; // per name+trim+condition sales performance, keyed by ModelSalesStat.key
 }
 
+export interface CompetitorTarget {
+  id: string;
+  name: string;
+  franchiseKey: FranchiseKey;
+  brand: string;
+  sizeTier: "small" | "mid" | "large";
+  askingPrice: number;
+  vehicleCount: number;
+  staffCount: number;
+  reputation: number;
+  csi: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -321,4 +334,6 @@ export interface GameState {
   toasts: Toast[];
   gameOver: { kind: FailureKind; message: string } | null;
   lastSavedDay: number;
+  acquisitionTargets: CompetitorTarget[]; // competitor dealerships currently for sale, refreshed monthly
+  acquisitionTargetsMonth: number; // the monthIndex() acquisitionTargets was generated for
 }

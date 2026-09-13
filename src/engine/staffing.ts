@@ -11,7 +11,7 @@ const HIRE_COST: Record<SalesRole, number> = {
   service_tech: 2000,
 };
 
-const BASE_SALARY: Record<SalesRole, number> = {
+export const BASE_SALARY: Record<SalesRole, number> = {
   salesperson: 2200,
   fi_manager: 3600,
   service_advisor: 3000,

@@ -25,6 +25,8 @@ export function loadGame(): GameState | null {
       if (d.auctionLotsDay === undefined) d.auctionLotsDay = -1;
       if (!d.modelStats) d.modelStats = {};
     }
+    if (!state.acquisitionTargets) state.acquisitionTargets = [];
+    if (state.acquisitionTargetsMonth === undefined) state.acquisitionTargetsMonth = -1;
     return state;
   } catch (err) {
     console.error("Rooftop: failed to load game", err);
