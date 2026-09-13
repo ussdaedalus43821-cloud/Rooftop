@@ -53,7 +53,7 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng): Customer
   return {
     id: nextId("cust"),
     name,
-    budgetMonthly: Math.round(rng.range(280, 900)),
+    budgetMonthly: 0, // set once the vehicle they're shopping is known, see tryCreateUp
     downPaymentCash: Math.round(rng.range(0, 6000)),
     creditTier: credit.tier,
     hasTrade,
@@ -123,8 +123,16 @@ export function tryCreateUp(d: Dealership, day: number, rng: Rng): Deal | null {
   const matches = lot.filter((v) => v.model.class === customer.interestedModelClass);
   const vehicle = matches.length > 0 ? rng.pick(matches) : rng.pick(lot);
 
-  const target = customerTargetPrice(customer, vehicle);
+  // A customer's real-world budget tracks whatever they're actually
+  // shopping, not a flat nationwide number — otherwise a $900/mo ceiling
+  // makes every deal on a $70k+ truck or a luxury lot look unaffordable
+  // no matter how good the price is.
   const buyRate = buyRateForTier(customer.creditTier);
+  const referenceFinanced = Math.max(0, vehicle.listPrice - customer.downPaymentCash) * rng.range(0.85, 1);
+  const referencePayment = computeMonthlyPayment(referenceFinanced, buyRate, 60);
+  customer.budgetMonthly = Math.round(referencePayment * rng.range(0.85, 1.2));
+
+  const target = customerTargetPrice(customer, vehicle);
   const terms = buildTerms(vehicle.listPrice, 0, customer.downPaymentCash, 60, buyRate, buyRate + 0.025);
   const deal: Deal = {
     id: nextId("deal"),
