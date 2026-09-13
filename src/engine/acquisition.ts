@@ -113,7 +113,7 @@ export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLo
       odometer,
       conditionScore,
       marketValue,
-      minBid: Math.round(marketValue * 0.85),
+      minBid: Math.round(marketValue * 0.55),
     });
   }
   return lots;
@@ -126,7 +126,11 @@ export interface AuctionResult {
 }
 
 export function bidOnAuctionLot(d: Dealership, lot: AuctionLot, bid: number, day: number, rng: Rng): AuctionResult {
-  const competitivePrice = lot.marketValue * rng.range(0.88, 1.08);
+  // Competing bids are realistically centered *below* true wholesale value —
+  // that's the whole point of a wholesale auction. Bidding at market value
+  // should win nearly every time; bidding under it is a real bargain-hunt
+  // with real risk of losing the lot, not a near-guaranteed overpay.
+  const competitivePrice = lot.marketValue * rng.range(0.6, 1.03);
   if (bid < lot.minBid) return { won: false, finalPrice: 0 };
   const won = bid >= competitivePrice;
   if (!won) return { won: false, finalPrice: 0 };
