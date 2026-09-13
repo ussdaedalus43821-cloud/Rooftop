@@ -247,6 +247,15 @@ export interface CareerState {
 
 export type FailureKind = "floorplan_seized" | null;
 
+export interface Toast {
+  id: string;
+  text: string;
+  kind: "good" | "bad" | "warn" | "info";
+  day: number;
+  createdAtMs: number; // real wall-clock time, used to auto-expire the floating popup
+  dismissed: boolean; // soft-dismissed from the floating stack; still shows in notification history
+}
+
 export interface GameSettings {
   autoSaveEnabled: boolean;
 }
@@ -284,7 +293,7 @@ export interface GameState {
   career: CareerState;
   settings: GameSettings;
   activeTab: string;
-  toasts: { id: string; text: string; kind: "good" | "bad" | "warn" | "info"; day: number }[];
+  toasts: Toast[];
   gameOver: { kind: FailureKind; message: string } | null;
   lastSavedDay: number;
 }

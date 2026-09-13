@@ -253,12 +253,53 @@ button { font-family: var(--sans); }
 }
 .modal h2 { margin-top: 0; }
 
-.toast-stack { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 60; max-width: 340px; }
-.toast { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent); padding: 10px 12px; border-radius: 8px; font-size: 12.5px; animation: toast-in 0.2s ease-out; }
+.toast-stack { position: fixed; bottom: 16px; right: 16px; display: flex; flex-direction: column-reverse; gap: 8px; z-index: 60; max-width: 340px; }
+.toast {
+  background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent); padding: 10px 34px 10px 12px; border-radius: 8px; font-size: 12.5px;
+  animation: toast-in 0.2s ease-out; position: relative;
+}
 .toast.good { border-left-color: var(--good); }
 .toast.bad { border-left-color: var(--bad); }
 .toast.warn { border-left-color: var(--warn); }
+.toast-close {
+  position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; line-height: 18px; text-align: center;
+  background: transparent; border: none; color: var(--text-faint); font-size: 16px; cursor: pointer; border-radius: 4px; padding: 0;
+}
+.toast-close:hover { color: var(--text); background: var(--bg-panel-alt); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.bell-btn {
+  position: relative; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px;
+  font-size: 16px; cursor: pointer; margin-left: 14px; flex-shrink: 0;
+}
+.bell-btn:hover { border-color: var(--accent); }
+.bell-badge {
+  position: absolute; top: -6px; right: -6px; background: var(--bad); color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 16px; height: 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+
+.notif-panel {
+  position: fixed; top: 66px; right: 16px; width: 360px; max-width: calc(100vw - 32px); max-height: 70vh;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+  z-index: 70; display: flex; flex-direction: column; overflow: hidden;
+}
+.notif-panel-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.notif-panel-header h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-dim); }
+.notif-list { overflow-y: auto; padding: 6px; }
+.notif-item {
+  position: relative; display: flex; flex-direction: column; gap: 2px; padding: 8px 30px 8px 10px; border-left: 3px solid var(--accent);
+  background: var(--bg-card); border-radius: 6px; margin-bottom: 6px; font-size: 12.5px;
+}
+.notif-item.good { border-left-color: var(--good); }
+.notif-item.bad { border-left-color: var(--bad); }
+.notif-item.warn { border-left-color: var(--warn); }
+.notif-text { color: var(--text); }
+.notif-day { color: var(--text-faint); font-size: 11px; }
+.notif-remove {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; line-height: 16px; text-align: center;
+  background: transparent; border: none; color: var(--text-faint); font-size: 14px; cursor: pointer; border-radius: 4px; padding: 0;
+}
+.notif-remove:hover { color: var(--text); background: var(--bg-panel-alt); }
 
 .form-row { margin-bottom: 12px; }
 .form-row label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }

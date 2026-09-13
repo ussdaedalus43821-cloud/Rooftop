@@ -34,9 +34,20 @@ let ctx: AppCtx | null = null;
 let newGameSetupActive = false;
 let pickerCategory: FranchiseCategory | null = null;
 let pickerBrand: FranchiseKey | null = null;
+let notificationsPanelOpen = false;
+
+const TOAST_LIFETIME_MS = 6000;
+const MAX_FLOATING_TOASTS = 3;
 
 export function isNewGameSetupActive(): boolean {
   return newGameSetupActive;
+}
+
+/** True while any floating toast is still on-screen, so the caller knows to keep re-rendering for the countdown. */
+export function hasLiveToasts(): boolean {
+  if (!ctx) return false;
+  const now = Date.now();
+  return ctx.state.toasts.some((t) => !t.dismissed && now - t.createdAtMs < TOAST_LIFETIME_MS);
 }
 
 export function mountApp(root: HTMLElement, state: GameState, rng: Rng, markDirty: () => void, forceSetup = false): void {
@@ -130,8 +141,6 @@ export function render(): void {
   ];
   const speedHtml = speeds.map((s) => `<button class="speed-btn ${state.speed === s.v ? "active" : ""}" data-action="global:setSpeed" data-speed="${s.v}">${s.label}</button>`).join("");
 
-  const toastsHtml = state.toasts.slice(-5).map((t) => `<div class="toast ${t.kind}">${escapeHtml(t.text)}</div>`).join("");
-
   const milestoneHtml = renderMilestoneModal();
   const gameOverHtml = renderGameOver();
 
@@ -152,13 +161,59 @@ export function render(): void {
         <div class="hud-stat"><div class="label">MTD Net</div><div class="value ${d.currentMonth.netIncome >= 0 ? "pos" : "neg"}">${money(d.currentMonth.netIncome)}</div></div>
         <div class="hud-stat"><div class="label">CSI</div><div class="value">${Math.round(d.manufacturer.csi)}</div></div>
       </div>
+      ${renderNotificationBell(state)}
     </div>
     <div class="tabbar">${tabsHtml}</div>
     <div class="tab-content">${activeTabModule().render(ctx!)}</div>
-    <div class="toast-stack">${toastsHtml}</div>
+    ${renderFloatingToasts(state)}
+    ${notificationsPanelOpen ? renderNotificationPanel(state) : ""}
     ${milestoneHtml}
     ${gameOverHtml}
   `;
+}
+
+function renderFloatingToasts(state: GameState): string {
+  const now = Date.now();
+  const live = state.toasts
+    .filter((t) => !t.dismissed && now - t.createdAtMs < TOAST_LIFETIME_MS)
+    .slice(-MAX_FLOATING_TOASTS)
+    .reverse();
+  if (live.length === 0) return "";
+  return `<div class="toast-stack">${live.map((t) => `
+    <div class="toast ${t.kind}">
+      <span>${escapeHtml(t.text)}</span>
+      <button class="toast-close" data-action="toast:dismiss" data-id="${t.id}" aria-label="Dismiss">&times;</button>
+    </div>`).join("")}</div>`;
+}
+
+function renderNotificationBell(state: GameState): string {
+  const count = state.toasts.length;
+  return `
+    <button class="bell-btn" data-action="notifications:toggle" aria-label="Notifications">
+      🔔${count > 0 ? `<span class="bell-badge">${count > 99 ? "99+" : count}</span>` : ""}
+    </button>`;
+}
+
+function renderNotificationPanel(state: GameState): string {
+  const items = [...state.toasts].reverse();
+  return `
+  <div class="notif-panel">
+    <div class="notif-panel-header">
+      <h3>Notifications</h3>
+      <div class="btn-row" style="margin-top:0;">
+        <button class="btn btn-sm" data-action="notifications:clearAll" ${items.length === 0 ? "disabled" : ""}>Clear All</button>
+        <button class="btn btn-sm" data-action="notifications:toggle">Close</button>
+      </div>
+    </div>
+    <div class="notif-list">
+      ${items.length === 0 ? '<div class="list-empty">Nothing yet.</div>' : items.map((t) => `
+        <div class="notif-item ${t.kind}">
+          <span class="notif-text">${escapeHtml(t.text)}</span>
+          <span class="notif-day">Day ${t.day}</span>
+          <button class="notif-remove" data-action="notifications:remove" data-id="${t.id}" aria-label="Remove">&times;</button>
+        </div>`).join("")}
+    </div>
+  </div>`;
 }
 
 function roleLabel(state: GameState): string {
@@ -217,6 +272,31 @@ function onClick(e: MouseEvent): void {
   if (action === "milestone:choose") {
     const choice = target.getAttribute("data-choice") as "equity" | "new_rooftop" | "decline";
     resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng);
+    ctx.markDirty();
+    render();
+    return;
+  }
+  if (action === "toast:dismiss") {
+    const id = target.getAttribute("data-id");
+    const toast = ctx.state.toasts.find((t) => t.id === id);
+    if (toast) toast.dismissed = true;
+    render();
+    return;
+  }
+  if (action === "notifications:toggle") {
+    notificationsPanelOpen = !notificationsPanelOpen;
+    render();
+    return;
+  }
+  if (action === "notifications:remove") {
+    const id = target.getAttribute("data-id");
+    ctx.state.toasts = ctx.state.toasts.filter((t) => t.id !== id);
+    ctx.markDirty();
+    render();
+    return;
+  }
+  if (action === "notifications:clearAll") {
+    ctx.state.toasts = [];
     ctx.markDirty();
     render();
     return;

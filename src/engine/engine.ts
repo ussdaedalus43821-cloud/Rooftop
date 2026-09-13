@@ -18,7 +18,14 @@ const MAX_TOASTS = 30;
 const STALE_NEGOTIATION_DAYS = 3;
 
 export function pushToast(state: GameState, text: string, kind: "good" | "bad" | "warn" | "info" = "info"): void {
-  state.toasts.push({ id: `${state.day}_${Math.random().toString(36).slice(2, 7)}`, text, kind, day: state.day });
+  state.toasts.push({
+    id: `${state.day}_${Math.random().toString(36).slice(2, 7)}`,
+    text,
+    kind,
+    day: state.day,
+    createdAtMs: Date.now(),
+    dismissed: false,
+  });
   if (state.toasts.length > MAX_TOASTS) state.toasts.splice(0, state.toasts.length - MAX_TOASTS);
 }
 
