@@ -1,7 +1,7 @@
 import { createNewGame } from "./state.js";
 import { loadGame, saveGame } from "./persistence.js";
 import { Rng } from "./rng.js";
-import { advanceOneDay } from "./engine/engine.js";
+import { advanceOneDay, pushToast } from "./engine/engine.js";
 import { msPerGameDay } from "./engine/clock.js";
 import { isNewGameSetupActive, mountApp, render } from "./ui/app.js";
 import type { GameState } from "./types.js";
@@ -26,6 +26,7 @@ function boot(): void {
 
   let lastFrame = performance.now();
   let lastAutosave = performance.now();
+  let lastSaveFailed = false; // avoid re-toasting the same failure every 8s while it persists
 
   function frame(now: number): void {
     const elapsed = now - lastFrame;
@@ -53,9 +54,16 @@ function boot(): void {
     if (state.settings.autoSaveEnabled && now - lastAutosave > AUTOSAVE_INTERVAL_MS) {
       lastAutosave = now;
       if (dirty) {
-        saveGame(state);
-        state.lastSavedDay = state.day;
-        dirty = false;
+        const result = saveGame(state);
+        if (result.ok) {
+          state.lastSavedDay = state.day;
+          dirty = false;
+          lastSaveFailed = false;
+        } else if (!lastSaveFailed) {
+          lastSaveFailed = true;
+          pushToast(state, `Autosave failed: ${result.error}`, "bad");
+          render();
+        }
       }
     }
 
