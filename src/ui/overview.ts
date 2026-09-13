@@ -15,6 +15,7 @@ import {
   transferFromTreasury,
   type FundingSource,
 } from "../engine/expansion.js";
+import { charterCaptiveLender, charterCaptiveLenderCost, sweepCaptiveLenderCash, type CaptiveLenderFunding } from "../engine/captiveLender.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -23,6 +24,7 @@ let treasuryAmountDraft = 10000;
 let buildCategory: FranchiseCategory | null = null;
 let buildBrand: FranchiseKey | null = null;
 let buildFunding: FundingSource = "active";
+let captiveLenderFunding: CaptiveLenderFunding = "active";
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -109,6 +111,48 @@ export const overviewTab: TabModule = {
       </div>`;
     })();
 
+    const captiveLenderCard = ctx.state.career.role === "gm" ? "" : (() => {
+      const lender = ctx.state.captiveLender;
+      const cost = charterCaptiveLenderCost();
+      if (!lender.chartered) {
+        const affordable = captiveLenderFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost;
+        return `
+        <div class="card">
+          <h3>Captive Finance Company</h3>
+          <p class="text-faint" style="font-size:11.5px;">Right now, every customer you finance has their loan wholesaled off to some outside bank — you collect a one-time reserve fee at signing and every dollar of interest after that just isn't yours. Charter your own captive lender (think Ford Credit, Toyota Financial Services) and every deal financed anywhere in your group, from now on, becomes a loan on <em>your</em> books instead — interest income lands every month, for as long as that loan is outstanding.</p>
+          <p style="font-size:12.5px;">Charter cost: <strong>${money(cost)}</strong></p>
+          <div class="form-row">
+            <label>Pay from:</label>
+            <select data-action="overview:captiveFundingSource">
+              <option value="active" ${captiveLenderFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+              <option value="treasury" ${captiveLenderFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" data-action="overview:charterCaptiveLender" ${affordable ? "" : "disabled"}>Charter A Captive Lender</button>
+          </div>
+        </div>`;
+      }
+      return `
+      <div class="card">
+        <h3>Captive Finance Company</h3>
+        <div class="grid grid-cols-3">
+          <div><div class="text-faint" style="font-size:11px;">Outstanding Portfolio</div><div class="mono">${money(lender.portfolioPrincipal)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Blended APR</div><div class="mono">${pct(lender.weightedApr, 1)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Uncollected Cash</div><div class="mono text-good">${money(lender.cash)}</div></div>
+        </div>
+        <div class="grid grid-cols-3" style="margin-top:10px;">
+          <div><div class="text-faint" style="font-size:11px;">Last Month Interest Income</div><div class="mono text-good">${money(lender.lastMonthInterestIncome)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Last Month Charge-Offs</div><div class="mono ${lender.lastMonthChargeOffs > 0 ? "text-bad" : ""}">${money(lender.lastMonthChargeOffs)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Lifetime Interest Income</div><div class="mono">${money(lender.lifetimeInterestIncome)}</div></div>
+        </div>
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">Every deal financed anywhere in your group feeds this portfolio. It runs passively — nothing to manage day-to-day — just sweep the interest it earns into your Group Treasury whenever you want to put it to work.</p>
+        <div class="btn-row">
+          <button class="btn btn-sm btn-primary" data-action="overview:sweepCaptiveLender" ${lender.cash <= 0 ? "disabled" : ""}>Sweep ${money(lender.cash)} To Treasury</button>
+        </div>
+      </div>`;
+    })();
+
     const expansionCard = ctx.state.career.role === "gm" ? "" : (() => {
       const targets = acquisitionTargetsForMonth(ctx.state, ctx.rng);
       return `
@@ -188,6 +232,7 @@ export const overviewTab: TabModule = {
       </div>
       ${groupCard}
       ${treasuryCard}
+      ${captiveLenderCard}
       ${expansionCard}
       ${buildRooftopCard}
     `;
@@ -219,6 +264,16 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, ok ? `${money(treasuryAmountDraft)} moved out of the Group Treasury.` : "Not enough in the Group Treasury.", ok ? "good" : "warn");
       return true;
     }
+    if (action === "overview:charterCaptiveLender") {
+      const result = charterCaptiveLender(ctx.state, captiveLenderFunding, ctx.state.activeDealershipId);
+      pushToast(ctx.state, result.ok ? "Captive Lender chartered — every deal financed group-wide now builds your own loan portfolio." : (result.reason ?? "Couldn't charter a captive lender."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:sweepCaptiveLender") {
+      const amount = sweepCaptiveLenderCash(ctx.state);
+      pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
+      return true;
+    }
     if (action === "overview:buildRooftop") {
       if (!buildBrand) return false;
       const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
@@ -232,6 +287,10 @@ export const overviewTab: TabModule = {
     return false;
   },
   onInput(ctx, action, target) {
+    if (action === "overview:captiveFundingSource" && target instanceof HTMLSelectElement) {
+      captiveLenderFunding = target.value as CaptiveLenderFunding;
+      return true;
+    }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {
       treasuryAmountDraft = Math.max(0, Number(target.value) || 0);
       return true;

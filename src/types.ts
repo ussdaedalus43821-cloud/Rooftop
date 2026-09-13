@@ -323,6 +323,21 @@ export interface CompetitorTarget {
   csi: number;
 }
 
+export interface CaptiveLenderState {
+  chartered: boolean;
+  charterDay: number;
+  cash: number; // retained interest income sitting in the lender's own account, swept to the Group Treasury manually
+  portfolioPrincipal: number; // aggregate outstanding loan balance across every financed deal group-wide, tracked in the aggregate rather than per-loan
+  weightedApr: number; // principal-weighted average buy-rate APR across the current portfolio
+  originationsThisMonth: number;
+  lastMonthOriginations: number;
+  lastMonthInterestIncome: number;
+  lastMonthChargeOffs: number;
+  lifetimeInterestIncome: number;
+  lifetimeChargeOffs: number;
+  lifetimeOriginationVolume: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -341,4 +356,5 @@ export interface GameState {
   acquisitionTargets: CompetitorTarget[]; // competitor dealerships currently for sale, refreshed monthly
   acquisitionTargetsMonth: number; // the monthIndex() acquisitionTargets was generated for
   groupTreasury: number; // cash pooled across all owned dealerships, outside any single store's own books
+  captiveLender: CaptiveLenderState;
 }

@@ -1,4 +1,5 @@
 import type { GameState } from "./types.js";
+import { newCaptiveLender } from "./engine/captiveLender.js";
 
 const SAVE_KEY = "rooftop.save.v1";
 const MAX_SERVICE_QUEUE = 150;
@@ -63,6 +64,7 @@ function migrateState(state: GameState): GameState {
   if (!state.acquisitionTargets) state.acquisitionTargets = [];
   if (state.acquisitionTargetsMonth === undefined) state.acquisitionTargetsMonth = -1;
   if (state.groupTreasury === undefined) state.groupTreasury = 0;
+  if (!state.captiveLender) state.captiveLender = newCaptiveLender();
   return state;
 }
 

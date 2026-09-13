@@ -1,4 +1,5 @@
 import { Rng } from "./rng.js";
+import { newCaptiveLender } from "./engine/captiveLender.js";
 import {
   CURTAILMENT_FRACTION,
   CURTAILMENT_GRACE_DAYS,
@@ -207,6 +208,7 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     acquisitionTargets: [],
     acquisitionTargetsMonth: -1,
     groupTreasury: 0,
+    captiveLender: newCaptiveLender(),
   };
 }
 

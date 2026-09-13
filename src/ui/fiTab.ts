@@ -3,6 +3,7 @@ import { money } from "./format.js";
 import { escapeHtml } from "./app.js";
 import { dealsAwaitingFi } from "../engine/salesFloor.js";
 import { buildFiMenu, enterFi, estimateFinanceReserve, finalizeFiAndClose, pitchProduct, setFinanceMarkup } from "../engine/fi.js";
+import { originateCaptiveLoan } from "../engine/captiveLender.js";
 import { pushToast } from "../engine/engine.js";
 import { hireStaff, trainStaff, fireStaff, trainCost, hireCost } from "../engine/staffing.js";
 
@@ -153,6 +154,7 @@ export const fiTab: TabModule = {
       const v = deal ? d.vehicles.find((x) => x.id === deal.vehicleId) : undefined;
       if (!deal || !v) return false;
       finalizeFiAndClose(d, deal, v, ctx.state.day, ctx.rng);
+      originateCaptiveLoan(ctx.state, deal);
       pushToast(ctx.state, `Deal closed. Total gross: ${money(deal.frontEndGross + deal.fiGross)}.`, "good");
       markupDrafts.delete(deal.id);
       selectedDealId = null;

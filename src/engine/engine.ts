@@ -8,6 +8,7 @@ import { autoRunFi } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
+import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -86,6 +87,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
       const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
       if (!vehicle) continue;
       autoRunFi(d, deal, vehicle, state.day, rng);
+      originateCaptiveLoan(state, deal);
       pushToast(state, `F&I closed ${deal.customer.name}'s deal. Total gross $${Math.round(deal.frontEndGross + deal.fiGross).toLocaleString()}.`, "good");
     }
   }
@@ -189,6 +191,11 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     monthlyCareerCycle(state, state.day);
     if (state.career.milestoneOfferPending) {
       pushToast(state, "A real opportunity has come up — check your Career milestone.", "good");
+    }
+
+    const captiveInterest = monthlyCaptiveLenderCycle(state);
+    if (captiveInterest > 0) {
+      pushToast(state, `Captive Lender: $${Math.round(captiveInterest).toLocaleString()} interest income earned on your $${Math.round(state.captiveLender.portfolioPrincipal).toLocaleString()} loan portfolio.`, "good");
     }
   }
 
