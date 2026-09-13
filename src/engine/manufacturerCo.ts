@@ -200,7 +200,13 @@ export function houseBrandConversionCost(): number {
   return CONVERSION_COST;
 }
 
-/** Converts an existing dealership's franchise over to the house brand — its staff, facility, service department and any inventory already on the lot all carry over untouched; only what it can newly order changes. */
+/** Drops the old brand's name out of a dealership's name and appends the new one — "Meridian Point Toyota" + "Meridian Motors" -> "Meridian Point Meridian Motors" — rather than leaving a competitor's brand baked into a store that no longer carries it. */
+function rebrandDealershipName(name: string, oldBrand: string, newBrand: string): string {
+  const stripped = oldBrand ? name.split(oldBrand).join(" ").replace(/\s{2,}/g, " ").trim() : name.trim();
+  return stripped.length > 0 ? `${stripped} ${newBrand}` : `${newBrand} of ${name.trim()}`;
+}
+
+/** Converts an existing dealership's franchise over to the house brand — its staff, facility, service department and any inventory already on the lot all carry over untouched; only what it can newly order (and its name/brand) changes. */
 export function convertToHouseBrand(state: GameState, dealershipId: string): FoundResult {
   const mc = state.manufacturerCo;
   if (!mc.founded) return { ok: false, reason: "Found your manufacturer first." };
@@ -210,6 +216,7 @@ export function convertToHouseBrand(state: GameState, dealershipId: string): Fou
   if (d.ledger.cash < CONVERSION_COST) return { ok: false, reason: "Not enough cash on hand for the rebrand." };
 
   postCashExpense(d, CONVERSION_COST);
+  d.name = rebrandDealershipName(d.name, d.brand, mc.brandName);
   applyHouseBrandRelations(state, d);
   return { ok: true };
 }
