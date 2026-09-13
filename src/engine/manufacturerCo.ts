@@ -17,7 +17,11 @@ import { postCashExpense } from "./financials.js";
 import { computeGroupNetWorth } from "./career.js";
 
 export const MANUFACTURER_CO_UNLOCK_NET_WORTH = 40_000_000;
-const FOUND_COST = 2_000_000;
+// Standing up an actual vehicle manufacturer — plant, tooling, homologation,
+// a dealer network to sell into — is a vastly bigger undertaking than any
+// other vertical here. Net worth merely has to clear the unlock line above;
+// affording to actually found one takes real, sustained growth past it.
+const FOUND_COST = 200_000_000;
 const NEW_STORE_COST = 300_000;
 const CONVERSION_COST = 150_000;
 

@@ -162,6 +162,16 @@ export function monthlyServiceCycle(d: Dealership, unitCost: number = RETAIL_PAR
   const advisorSkill = avgSkill(d.service.advisors, 45);
   d.service.retentionRate = clamp(0.25 + (d.manufacturer.csi / 100) * 0.35 + (advisorSkill / 100) * 0.2, 0.15, 0.85);
 
+  // CSI used to be driven almost entirely by how a sale got haggled, which
+  // meant a great service department (skilled advisors/techs, well-stocked
+  // parts) had no way to move the number at all — this is that missing
+  // lever. Runs monthly rather than per-job since a single repair shouldn't
+  // swing brand-wide satisfaction the way a single deal does.
+  const techSkill = avgSkill(d.service.techs, 45);
+  const serviceQuality = clamp(0.5 + ((advisorSkill - 50) / 100) * 0.4 + ((techSkill - 50) / 100) * 0.3 + (d.service.parts.fillRate - 0.7) * 0.5, 0, 1);
+  d.service.csiContribution = serviceQuality * 100;
+  d.manufacturer.csi = clamp(d.manufacturer.csi * 0.9 + serviceQuality * 100 * 0.1, 0, 100);
+
   d.service.monthlyCustomerPayGross = 0;
   d.service.monthlyWarrantyGross = 0;
   d.service.monthlyPartsGross = 0;

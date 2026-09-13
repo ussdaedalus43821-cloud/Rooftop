@@ -55,7 +55,17 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
   d.manufacturer.quotaAttainedThisMonth += vehicle.condition === "new" ? 1 : 0;
   recordModelSale(d, vehicle, grossProfit);
 
-  const dealSatisfaction = clamp01(0.5 + deal.lastCustomerMood * 0.25);
+  // A negotiation only has to clear a fixed "good enough to say yes"
+  // threshold to close, so mood-at-acceptance alone barely moves with rep
+  // skill — a sharper negotiator mostly spends that skill on extracting a
+  // better price, not on a happier customer. Professionalism beyond the
+  // haggled numbers (a rep who explains things well, an F&I manager who
+  // doesn't feel like a pressure pitch) is real and belongs in CSI too, so
+  // staff skill gets its own direct say here instead of being squeezed out.
+  const fiManager = deal.fiManagerId ? d.staff.find((s) => s.id === deal.fiManagerId) : undefined;
+  const repSkillBonus = rep ? ((rep.skill - 50) / 100) * 0.3 : 0;
+  const fiSkillBonus = fiManager ? ((fiManager.skill - 50) / 100) * 0.15 : 0;
+  const dealSatisfaction = clamp01(0.5 + deal.lastCustomerMood * 0.25 + repSkillBonus + fiSkillBonus);
   d.manufacturer.csi = clamp(d.manufacturer.csi * 0.94 + dealSatisfaction * 100 * 0.06, 0, 100);
   d.reputation = clamp(d.reputation + (dealSatisfaction - 0.5) * 4, 0, 100);
   d.serviceCustomerBase += 1;
