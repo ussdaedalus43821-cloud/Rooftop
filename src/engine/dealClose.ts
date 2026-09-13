@@ -1,6 +1,7 @@
 import type { Deal, Dealership, Vehicle } from "../types.js";
 import { createTradeInVehicle } from "./acquisition.js";
 import { payoffFloorPlanUnit, postCashExpense, sellVehicleBookkeeping } from "./financials.js";
+import { awardAgedUnitBonus } from "./staffing.js";
 import { Rng } from "../rng.js";
 
 /**
@@ -43,6 +44,9 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
     rep.dealsThisMonth += 1;
     rep.grossThisMonth += grossProfit;
   }
+  // Aged-unit clearance spiff: rewards moving stock that's been sitting a
+  // while, which also means fewer days of floor-plan interest before it sold.
+  d.currentMonth.incentiveExpense += awardAgedUnitBonus(d, rep, vehicle.daysInInventory);
 
   d.currentMonth.frontEndGross += grossProfit;
   d.currentMonth.fiGross += deal.fiGross;

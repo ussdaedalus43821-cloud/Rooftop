@@ -86,7 +86,7 @@ export interface AuctionLot {
   minBid: number;
 }
 
-export type SalesRole = "salesperson" | "fi_manager" | "service_tech" | "service_advisor";
+export type SalesRole = "salesperson" | "fi_manager" | "service_tech" | "service_advisor" | "gm";
 
 export interface StaffMember {
   id: string;
@@ -99,6 +99,7 @@ export interface StaffMember {
   commissionRate?: number; // for salespeople, share of front-end gross
   dealsThisMonth: number;
   grossThisMonth: number;
+  incentivesThisMonth: number; // bonus $ earned this month (top-performer, aged-unit clearance, dept pool, GM)
 }
 
 export interface Customer {
@@ -249,6 +250,7 @@ export interface MonthlyFinancials {
   floorPlanInterestExpense: number;
   overheadExpense: number;
   curtailmentPenalties: number;
+  incentiveExpense: number; // performance bonuses paid to staff (top-performer, aged-unit clearance, department pool, GM)
   netIncome: number;
   unitsSoldNew: number;
   unitsSoldUsed: number;

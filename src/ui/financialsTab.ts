@@ -55,10 +55,10 @@ export const financialsTab: TabModule = {
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Month</th><th class="num">Front-End</th><th class="num">F&amp;I</th><th class="num">Service</th><th class="num">Parts</th>
-            <th class="num">Payroll</th><th class="num">FP Interest</th><th class="num">Overhead</th><th class="num">Net Income</th><th class="num">Units</th>
+            <th class="num">Payroll</th><th class="num">FP Interest</th><th class="num">Overhead</th><th class="num">Bonuses</th><th class="num">Net Income</th><th class="num">Units</th>
           </tr></thead>
           <tbody>
-            ${history.length === 0 ? '<tr><td colspan="10" class="list-empty">No completed months yet.</td></tr>' : history.map((m) => `<tr>
+            ${history.length === 0 ? '<tr><td colspan="11" class="list-empty">No completed months yet.</td></tr>' : history.map((m) => `<tr>
               <td>${m.monthLabel}</td>
               <td class="num">${money(m.frontEndGross)}</td>
               <td class="num">${money(m.fiGross)}</td>
@@ -67,6 +67,7 @@ export const financialsTab: TabModule = {
               <td class="num">${money(m.payrollExpense)}</td>
               <td class="num">${money(m.floorPlanInterestExpense)}</td>
               <td class="num">${money(m.overheadExpense)}</td>
+              <td class="num">${money(m.incentiveExpense)}</td>
               <td class="num ${m.netIncome >= 0 ? "text-good" : "text-bad"}"><strong>${money(m.netIncome)}</strong></td>
               <td class="num">${m.unitsSoldNew + m.unitsSoldUsed}</td>
             </tr>`).join("")}

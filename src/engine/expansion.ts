@@ -104,6 +104,7 @@ function buildAcquiredDealership(rng: Rng, id: string, target: CompetitorTarget,
     commissionRate: role === "salesperson" ? 0.2 : role === "fi_manager" ? 0.08 : undefined,
     dealsThisMonth: 0,
     grossThisMonth: 0,
+    incentivesThisMonth: 0,
   }));
   d.staff = staff;
   d.service.techs = staff.filter((s) => s.role === "service_tech");

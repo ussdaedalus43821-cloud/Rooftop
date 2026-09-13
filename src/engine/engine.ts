@@ -8,7 +8,7 @@ import { autoRunFi } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
-import { applyMonthlyStaffCycle } from "./staffing.js";
+import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
   payAccruedPayroll,
@@ -115,13 +115,26 @@ function finalizeMonth(state: GameState, d: Dealership): void {
 
   d.currentMonth.totalGrossProfit =
     d.currentMonth.frontEndGross + d.currentMonth.fiGross + d.currentMonth.serviceGross + d.currentMonth.partsGross;
-  d.currentMonth.netIncome =
+  const preIncentiveNetIncome =
     d.currentMonth.totalGrossProfit -
     d.currentMonth.payrollExpense -
     d.currentMonth.floorPlanInterestExpense -
     d.currentMonth.overheadExpense -
-    d.currentMonth.curtailmentPenalties;
+    d.currentMonth.curtailmentPenalties -
+    d.currentMonth.incentiveExpense; // aged-unit spiffs, already paid out during the month
+
+  // Top-performer, service-pool, and GM bonuses are read from this month's
+  // deal/gross counters, so this must run before applyMonthlyStaffCycle
+  // resets them — and before netIncome is finalized, so the payout counts.
+  const incentives = applyMonthlyIncentives(d, preIncentiveNetIncome);
+  d.currentMonth.incentiveExpense += incentives.total;
+  d.currentMonth.netIncome = preIncentiveNetIncome - incentives.total;
   d.currentMonth.csiAvgScore = d.manufacturer.csi;
+  // incentivesThisMonth gets reset per-staff below (new month starting), so
+  // this toast is the only place these payouts are ever visible to the player.
+  for (const award of incentives.awards) {
+    pushToast(state, `${d.name} — ${award.label}: ${award.name} earned $${award.amount.toLocaleString()}.`, "good");
+  }
 
   d.monthlyHistory.push(d.currentMonth);
   if (d.monthlyHistory.length > 36) d.monthlyHistory.shift();
@@ -147,6 +160,7 @@ function finalizeMonth(state: GameState, d: Dealership): void {
     floorPlanInterestExpense: 0,
     overheadExpense: 0,
     curtailmentPenalties: 0,
+    incentiveExpense: 0,
     netIncome: 0,
     unitsSoldNew: 0,
     unitsSoldUsed: 0,

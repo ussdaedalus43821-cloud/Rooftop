@@ -44,6 +44,7 @@ function emptyMonth(label: string): MonthlyFinancials {
     floorPlanInterestExpense: 0,
     overheadExpense: 0,
     curtailmentPenalties: 0,
+    incentiveExpense: 0,
     netIncome: 0,
     unitsSoldNew: 0,
     unitsSoldUsed: 0,
@@ -64,6 +65,7 @@ function makeStaff(rng: Rng, role: StaffMember["role"], skill: number, salary: n
     commissionRate: commission,
     dealsThisMonth: 0,
     grossThisMonth: 0,
+    incentivesThisMonth: 0,
   };
 }
 

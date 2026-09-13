@@ -24,6 +24,13 @@ export function loadGame(): GameState | null {
       if (!d.auctionLots) d.auctionLots = [];
       if (d.auctionLotsDay === undefined) d.auctionLotsDay = -1;
       if (!d.modelStats) d.modelStats = {};
+      if (d.currentMonth.incentiveExpense === undefined) d.currentMonth.incentiveExpense = 0;
+      for (const m of d.monthlyHistory) {
+        if (m.incentiveExpense === undefined) m.incentiveExpense = 0;
+      }
+      for (const s of d.staff) {
+        if (s.incentivesThisMonth === undefined) s.incentivesThisMonth = 0;
+      }
     }
     if (!state.acquisitionTargets) state.acquisitionTargets = [];
     if (state.acquisitionTargetsMonth === undefined) state.acquisitionTargetsMonth = -1;
