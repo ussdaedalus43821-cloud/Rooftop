@@ -31,7 +31,7 @@ function boot(): void {
     const elapsed = now - lastFrame;
     lastFrame = now;
 
-    if (state.speed > 0 && !state.gameOver && !isNewGameSetupActive()) {
+    if (state.speed > 0 && !state.gameOver && !isNewGameSetupActive() && !state.career.milestoneOfferPending) {
       state.realMsAccumulator += elapsed;
       const perDay = msPerGameDay(state.speed);
       let advanced = false;

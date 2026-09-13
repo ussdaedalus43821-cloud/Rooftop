@@ -38,6 +38,7 @@ export function monthlyCareerCycle(state: GameState, day: number): void {
   ) {
     state.career.milestoneOfferPending = true;
     state.career.milestoneOfferDay = day;
+    state.speed = 0; // pause so a big career decision never gets buried by the clock running underneath it
   }
 }
 
