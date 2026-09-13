@@ -1,6 +1,7 @@
 import type { TabModule } from "./types.js";
 import { money } from "./format.js";
 import { checkInvariant, totalAssets, totalEquity, totalLiabilities } from "../engine/financials.js";
+import { netWorthStanding } from "../engine/career.js";
 
 export const financialsTab: TabModule = {
   key: "financials",
@@ -10,6 +11,20 @@ export const financialsTab: TabModule = {
     const inv = checkInvariant(d);
     const history = [...d.monthlyHistory].slice(-12).reverse();
     const career = ctx.state.career;
+
+    const groupNetWorth = Object.values(ctx.state.dealerships).reduce((sum, x) => sum + (totalAssets(x) - totalLiabilities(x)), 0) + ctx.state.groupTreasury;
+    const standing = netWorthStanding(groupNetWorth);
+    const empireCard = `
+      <div class="card">
+        <h3>Empire Standing</h3>
+        <div class="big-number">${standing.tier.title}</div>
+        <div class="sub">Group net worth (all rooftops + treasury): ${money(groupNetWorth)}</div>
+        ${standing.next ? `
+        <div class="meter" style="margin-top:8px;"><div style="width:${Math.round(standing.progressToNext * 100)}%"></div></div>
+        <div class="sub" style="margin-top:4px;">${money(standing.next.threshold - groupNetWorth > 0 ? standing.next.threshold - groupNetWorth : 0)} to reach "${standing.next.title}"</div>
+        ` : `<div class="sub">Top tier reached — from here it's about how big and how many rooftops you can run at once.</div>`}
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">There's no finish line in Rooftop — the game keeps giving you more ways to spend and grow: sell a store, build another from scratch, or move cash around your group. This tracks how far that's taken you.</p>
+      </div>`;
 
     const balanceSheet = `
       <div class="card">
@@ -85,6 +100,6 @@ export const financialsTab: TabModule = {
         </div>
       </div>`;
 
-    return `${balanceSheet}<div class="section-title">Profit &amp; Loss</div>${plTable}<div class="section-title">Career</div>${careerCard}`;
+    return `${empireCard}${balanceSheet}<div class="section-title">Profit &amp; Loss</div>${plTable}<div class="section-title">Career</div>${careerCard}`;
   },
 };

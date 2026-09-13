@@ -306,6 +306,8 @@ export interface Dealership {
   auctionLots: AuctionLot[]; // today's wholesale auction lots, cached here so auto-pilot and the manual UI see/consume the same batch
   auctionLotsDay: number; // the game day auctionLots was generated for
   modelStats: Record<string, ModelSalesStat>; // per name+trim+condition sales performance, keyed by ModelSalesStat.key
+  acquiredDay?: number; // set only when this store was bought (competitor purchase), not founded — drives the recent-acquisition failure protection
+  acquiredCost?: number; // what was paid to acquire it, for that same protection's partial refund
 }
 
 export interface CompetitorTarget {
@@ -338,4 +340,5 @@ export interface GameState {
   lastSavedDay: number;
   acquisitionTargets: CompetitorTarget[]; // competitor dealerships currently for sale, refreshed monthly
   acquisitionTargetsMonth: number; // the monthIndex() acquisitionTargets was generated for
+  groupTreasury: number; // cash pooled across all owned dealerships, outside any single store's own books
 }

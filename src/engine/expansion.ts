@@ -1,11 +1,11 @@
-import type { CompetitorTarget, Dealership, GameState, StaffMember } from "../types.js";
+import type { CompetitorTarget, Dealership, FranchiseKey, GameState, StaffMember } from "../types.js";
 import { Rng } from "../rng.js";
 import { nextId, createDealership } from "../state.js";
 import { monthIndex } from "./clock.js";
-import { postCashExpense, financeAcquisition } from "./financials.js";
+import { postCashExpense, financeAcquisition, totalAssets, totalLiabilities, distributeToOwner, injectCapital } from "./financials.js";
 import { makeVehicle } from "./acquisition.js";
 import { BASE_SALARY } from "./staffing.js";
-import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS, FRANCHISE_OPTIONS, STAFF_FIRST_NAMES, STAFF_LAST_NAMES } from "../constants.js";
+import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS, FRANCHISE_OPTIONS, STAFF_FIRST_NAMES, STAFF_LAST_NAMES, getFranchiseOption } from "../constants.js";
 
 const TARGETS_PER_MONTH = 3;
 
@@ -148,8 +148,99 @@ export function buyCompetitorDealership(state: GameState, buyerDealershipId: str
   postCashExpense(buyer, target.askingPrice);
 
   const newId = nextId("dlr");
-  state.dealerships[newId] = buildAcquiredDealership(rng, newId, target, state.day);
+  const acquired = buildAcquiredDealership(rng, newId, target, state.day);
+  acquired.acquiredDay = state.day;
+  acquired.acquiredCost = target.askingPrice;
+  state.dealerships[newId] = acquired;
   state.acquisitionTargets = state.acquisitionTargets.filter((t) => t.id !== targetId);
 
   return { ok: true, newDealershipId: newId };
+}
+
+const NEW_ROOFTOP_GROUP_NAMES = ["Summit", "Harbor", "Crossroads", "Union", "Cascade", "Meridian", "Vanguard", "Anchor", "Trailhead", "Overlook"];
+
+/** What it costs to stand up a brand-new rooftop from scratch for a given franchise — steeper than the one-time career milestone's discounted capital, since there's no employer subsidizing this one. */
+export function newRooftopCost(franchiseKey: FranchiseKey): number {
+  const option = getFranchiseOption(franchiseKey);
+  return Math.round(option.startingCash * 1.15);
+}
+
+export type FundingSource = "active" | "treasury";
+
+/**
+ * Build a brand-new rooftop for a franchise, from nothing — a repeatable
+ * counterpart to the one-time GM->owner milestone's "new_rooftop" choice
+ * (which can only ever fire once). Funded either from an existing store's
+ * own cash or from the pooled group treasury.
+ */
+export function buildNewRooftop(state: GameState, funding: FundingSource, payerDealershipId: string, franchiseKey: FranchiseKey, rng: Rng): AcquireResult {
+  if (state.career.role === "gm") return { ok: false, reason: "Become an owner before opening another rooftop." };
+  const cost = newRooftopCost(franchiseKey);
+
+  if (funding === "treasury") {
+    if (state.groupTreasury < cost) return { ok: false, reason: "Not enough in the group treasury." };
+    state.groupTreasury -= cost;
+  } else {
+    const payer = state.dealerships[payerDealershipId];
+    if (!payer) return { ok: false, reason: "Dealership not found." };
+    if (payer.ledger.cash < cost) return { ok: false, reason: "Not enough cash on hand." };
+    postCashExpense(payer, cost);
+  }
+
+  const newId = nextId("dlr");
+  const brand = getFranchiseOption(franchiseKey).brand;
+  const groupName = `${rng.pick(NEW_ROOFTOP_GROUP_NAMES)} ${brand}`;
+  state.dealerships[newId] = createDealership(rng, newId, groupName, franchiseKey, state.day);
+  return { ok: true, newDealershipId: newId };
+}
+
+export interface SellResult {
+  ok: boolean;
+  reason?: string;
+  proceeds?: number;
+}
+
+/** What another buyer would realistically pay for this store: book equity plus goodwill for reputation/team/CSI, at a buyer's-market discount. */
+export function appraiseDealership(d: Dealership): number {
+  const bookEquity = totalAssets(d) - totalLiabilities(d);
+  const goodwill = d.staff.length * 9000 + d.reputation * 1400 + d.manufacturer.csi * 1100;
+  return Math.max(15000, Math.round((bookEquity + goodwill) * 0.82));
+}
+
+/**
+ * Sell an owned dealership outright. Proceeds land in the pooled group
+ * treasury (not the selling store's own cash, since the store itself is
+ * going away) so the money is immediately usable across the rest of the
+ * group rather than orphaned in a dealership that no longer exists.
+ */
+export function sellDealership(state: GameState, dealershipId: string): SellResult {
+  const d = state.dealerships[dealershipId];
+  if (!d) return { ok: false, reason: "Dealership not found." };
+  if (Object.keys(state.dealerships).length <= 1) return { ok: false, reason: "You can't sell your only dealership." };
+
+  const proceeds = appraiseDealership(d);
+  state.groupTreasury += proceeds;
+  delete state.dealerships[dealershipId];
+  if (state.activeDealershipId === dealershipId) {
+    state.activeDealershipId = Object.keys(state.dealerships)[0];
+  }
+  return { ok: true, proceeds };
+}
+
+/** Move cash from a store's own books into the pooled group treasury. */
+export function transferToTreasury(state: GameState, dealershipId: string, amount: number): boolean {
+  const d = state.dealerships[dealershipId];
+  if (!d || amount <= 0 || d.ledger.cash < amount) return false;
+  distributeToOwner(d, amount);
+  state.groupTreasury += amount;
+  return true;
+}
+
+/** Move cash from the pooled group treasury into a store's own books. */
+export function transferFromTreasury(state: GameState, dealershipId: string, amount: number): boolean {
+  const d = state.dealerships[dealershipId];
+  if (!d || amount <= 0 || state.groupTreasury < amount) return false;
+  state.groupTreasury -= amount;
+  injectCapital(d, amount);
+  return true;
 }

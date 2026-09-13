@@ -62,6 +62,7 @@ function migrateState(state: GameState): GameState {
   }
   if (!state.acquisitionTargets) state.acquisitionTargets = [];
   if (state.acquisitionTargetsMonth === undefined) state.acquisitionTargetsMonth = -1;
+  if (state.groupTreasury === undefined) state.groupTreasury = 0;
   return state;
 }
 

@@ -79,3 +79,44 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
+
+/**
+ * There's no hard win condition in Rooftop — it's a sandbox tycoon, and the
+ * game keeps generating new capacity to deploy (more rooftops to buy/build,
+ * a shared treasury to move around) rather than ending. These titles exist
+ * so growth past any one number still has a next, named thing to reach for.
+ */
+export interface NetWorthTier {
+  threshold: number;
+  title: string;
+}
+
+export const NET_WORTH_TIERS: NetWorthTier[] = [
+  { threshold: 0, title: "Startup Lot" },
+  { threshold: 250_000, title: "Established Dealer" },
+  { threshold: 1_000_000, title: "Regional Player" },
+  { threshold: 5_000_000, title: "Multi-Store Operator" },
+  { threshold: 15_000_000, title: "Auto Group Executive" },
+  { threshold: 40_000_000, title: "Industry Titan" },
+  { threshold: 100_000_000, title: "Automotive Empire" },
+  { threshold: 250_000_000, title: "National Powerhouse" },
+  { threshold: 1_000_000_000, title: "Legend of the Trade" },
+];
+
+export interface NetWorthStanding {
+  tier: NetWorthTier;
+  tierIndex: number;
+  next: NetWorthTier | null;
+  progressToNext: number; // 0-1, or 1 if at the top tier
+}
+
+export function netWorthStanding(netWorth: number): NetWorthStanding {
+  let idx = 0;
+  for (let i = 0; i < NET_WORTH_TIERS.length; i++) {
+    if (netWorth >= NET_WORTH_TIERS[i].threshold) idx = i;
+  }
+  const tier = NET_WORTH_TIERS[idx];
+  const next = NET_WORTH_TIERS[idx + 1] ?? null;
+  const progressToNext = next ? clamp((netWorth - tier.threshold) / (next.threshold - tier.threshold), 0, 1) : 1;
+  return { tier, tierIndex: idx, next, progressToNext };
+}

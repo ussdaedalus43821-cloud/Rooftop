@@ -206,6 +206,7 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     lastSavedDay: 0,
     acquisitionTargets: [],
     acquisitionTargetsMonth: -1,
+    groupTreasury: 0,
   };
 }
 

@@ -1,12 +1,28 @@
 import type { TabModule } from "./types.js";
-import type { Dealership } from "../types.js";
+import type { Dealership, FranchiseCategory, FranchiseKey } from "../types.js";
 import { money, pct, meterClass } from "./format.js";
 import { unitsOnLot } from "../engine/inventory.js";
 import { activeNegotiations, dealsAwaitingFi } from "../engine/salesFloor.js";
 import { checkInvariant } from "../engine/financials.js";
-import { acquisitionTargetsForMonth, buyCompetitorDealership } from "../engine/expansion.js";
+import {
+  acquisitionTargetsForMonth,
+  buyCompetitorDealership,
+  appraiseDealership,
+  sellDealership,
+  buildNewRooftop,
+  newRooftopCost,
+  transferToTreasury,
+  transferFromTreasury,
+  type FundingSource,
+} from "../engine/expansion.js";
 import { pushToast } from "../engine/engine.js";
+import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
+
+let treasuryAmountDraft = 10000;
+let buildCategory: FranchiseCategory | null = null;
+let buildBrand: FranchiseKey | null = null;
+let buildFunding: FundingSource = "active";
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -32,12 +48,66 @@ export const overviewTab: TabModule = {
       <div class="card">
         <h3>Dealer Group</h3>
         <table>
-          <thead><tr><th>Rooftop</th><th class="num">Cash</th><th class="num">MTD Net</th><th class="num">CSI</th></tr></thead>
+          <thead><tr><th>Rooftop</th><th class="num">Cash</th><th class="num">MTD Net</th><th class="num">CSI</th><th></th></tr></thead>
           <tbody>
-            ${Object.values(ctx.state.dealerships).map((x) => `<tr><td>${escapeHtml(x.name)}</td><td class="num">${money(x.ledger.cash)}</td><td class="num ${x.currentMonth.netIncome >= 0 ? "text-good" : "text-bad"}">${money(x.currentMonth.netIncome)}</td><td class="num">${Math.round(x.manufacturer.csi)}</td></tr>`).join("")}
+            ${Object.values(ctx.state.dealerships).map((x) => `<tr>
+              <td>${escapeHtml(x.name)}</td>
+              <td class="num">${money(x.ledger.cash)}</td>
+              <td class="num ${x.currentMonth.netIncome >= 0 ? "text-good" : "text-bad"}">${money(x.currentMonth.netIncome)}</td>
+              <td class="num">${Math.round(x.manufacturer.csi)}</td>
+              <td><button class="btn btn-sm btn-bad" data-action="overview:sellDealership" data-target="${x.id}">Sell (~${money(appraiseDealership(x))})</button></td>
+            </tr>`).join("")}
           </tbody>
         </table>
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">Selling a rooftop closes it for good — the buyer pays roughly its book value plus goodwill, deposited straight into your Group Treasury below.</p>
       </div>` : "";
+
+    const treasuryCard = dealershipCount > 1 ? `
+      <div class="card">
+        <h3>Group Treasury</h3>
+        <div class="big-number">${money(ctx.state.groupTreasury)}</div>
+        <p class="text-faint" style="font-size:11.5px;">A shared pool outside any single store's own books — sale proceeds land here, and you can move cash between it and whichever rooftop you're viewing (currently ${escapeHtml(d.name)}).</p>
+        <div class="btn-row">
+          <input type="number" step="1000" min="0" style="width:120px;" value="${treasuryAmountDraft}" data-action="overview:setTreasuryAmount" />
+          <button class="btn btn-sm" data-action="overview:depositTreasury" ${d.ledger.cash < treasuryAmountDraft ? "disabled" : ""}>Deposit from ${escapeHtml(d.name)}</button>
+          <button class="btn btn-sm" data-action="overview:withdrawTreasury" ${ctx.state.groupTreasury < treasuryAmountDraft ? "disabled" : ""}>Withdraw to ${escapeHtml(d.name)}</button>
+        </div>
+      </div>` : "";
+
+    const buildRooftopCard = ctx.state.career.role === "gm" ? "" : (() => {
+      const brandChoices = buildCategory ? franchisesInCategory(buildCategory) : [];
+      const selectedBrand = buildBrand ? getFranchiseOption(buildBrand) : null;
+      const cost = selectedBrand ? newRooftopCost(selectedBrand.key) : 0;
+      const affordable = selectedBrand ? (buildFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost) : false;
+      return `
+      <div class="card">
+        <h3>Build a New Rooftop</h3>
+        <p class="text-faint" style="font-size:11.5px;">Stand up a brand-new store from scratch with a fresh franchise — as many times as you can afford, no career milestone required.</p>
+        <div class="form-row">
+          <select data-action="overview:buildSetCategory">
+            <option value="" ${!buildCategory ? "selected" : ""}>— Select a customer base —</option>
+            ${FRANCHISE_CATEGORIES.map((c) => `<option value="${c.key}" ${buildCategory === c.key ? "selected" : ""}>${escapeHtml(c.label)}</option>`).join("")}
+          </select>
+          ${buildCategory ? `
+          <select data-action="overview:buildSetBrand">
+            <option value="" ${!buildBrand ? "selected" : ""}>— Select a brand —</option>
+            ${brandChoices.map((f) => `<option value="${f.key}" ${buildBrand === f.key ? "selected" : ""}>${escapeHtml(f.brand)}</option>`).join("")}
+          </select>` : ""}
+        </div>
+        ${selectedBrand ? `
+        <p style="font-size:12.5px;">${escapeHtml(selectedBrand.brand)} start-up cost: <strong>${money(cost)}</strong></p>
+        <div class="form-row">
+          <label>Pay from:</label>
+          <select data-action="overview:buildSetFunding">
+            <option value="active" ${buildFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+            <option value="treasury" ${buildFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="overview:buildRooftop" ${affordable ? "" : "disabled"}>Break Ground</button>
+        </div>` : ""}
+      </div>`;
+    })();
 
     const expansionCard = ctx.state.career.role === "gm" ? "" : (() => {
       const targets = acquisitionTargetsForMonth(ctx.state, ctx.rng);
@@ -117,7 +187,9 @@ export const overviewTab: TabModule = {
         </div>
       </div>
       ${groupCard}
+      ${treasuryCard}
       ${expansionCard}
+      ${buildRooftopCard}
     `;
   },
   onAction(ctx, action, target) {
@@ -125,6 +197,56 @@ export const overviewTab: TabModule = {
       const targetId = target.getAttribute("data-target")!;
       const result = buyCompetitorDealership(ctx.state, ctx.state.activeDealershipId, targetId, ctx.rng);
       pushToast(ctx.state, result.ok ? "Acquired! The new rooftop joins your group." : (result.reason ?? "Couldn't complete the purchase."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:sellDealership") {
+      const targetId = target.getAttribute("data-target")!;
+      const sellingD = ctx.state.dealerships[targetId];
+      if (!sellingD) return false;
+      const preview = appraiseDealership(sellingD);
+      if (!confirm(`Sell ${sellingD.name} for roughly ${money(preview)}? This closes the store for good and deposits the proceeds into your Group Treasury.`)) return false;
+      const result = sellDealership(ctx.state, targetId);
+      pushToast(ctx.state, result.ok ? `Sold for ${money(result.proceeds!)} — deposited into the Group Treasury.` : (result.reason ?? "Couldn't complete the sale."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:depositTreasury") {
+      const ok = transferToTreasury(ctx.state, ctx.state.activeDealershipId, treasuryAmountDraft);
+      pushToast(ctx.state, ok ? `${money(treasuryAmountDraft)} moved into the Group Treasury.` : "Not enough cash on hand.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:withdrawTreasury") {
+      const ok = transferFromTreasury(ctx.state, ctx.state.activeDealershipId, treasuryAmountDraft);
+      pushToast(ctx.state, ok ? `${money(treasuryAmountDraft)} moved out of the Group Treasury.` : "Not enough in the Group Treasury.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:buildRooftop") {
+      if (!buildBrand) return false;
+      const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
+      pushToast(ctx.state, result.ok ? "Broke ground on a new rooftop!" : (result.reason ?? "Couldn't build that rooftop."), result.ok ? "good" : "warn");
+      if (result.ok) {
+        buildCategory = null;
+        buildBrand = null;
+      }
+      return true;
+    }
+    return false;
+  },
+  onInput(ctx, action, target) {
+    if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {
+      treasuryAmountDraft = Math.max(0, Number(target.value) || 0);
+      return true;
+    }
+    if (action === "overview:buildSetCategory" && target instanceof HTMLSelectElement) {
+      buildCategory = (target.value || null) as FranchiseCategory | null;
+      buildBrand = null;
+      return true;
+    }
+    if (action === "overview:buildSetBrand" && target instanceof HTMLSelectElement) {
+      buildBrand = (target.value || null) as FranchiseKey | null;
+      return true;
+    }
+    if (action === "overview:buildSetFunding" && target instanceof HTMLSelectElement) {
+      buildFunding = target.value as FundingSource;
       return true;
     }
     return false;

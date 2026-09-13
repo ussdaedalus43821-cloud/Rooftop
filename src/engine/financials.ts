@@ -73,6 +73,18 @@ export function payFloorPlanInterest(d: Dealership): number {
   return amt;
 }
 
+/** Cash out of a store to its owner (e.g. into the pooled group treasury) — a distribution against retained earnings, not an expense. */
+export function distributeToOwner(d: Dealership, amount: number): void {
+  d.ledger.cash -= amount;
+  d.ledger.retainedEarnings -= amount;
+}
+
+/** Cash into a store from its owner (e.g. out of the pooled group treasury) — a capital contribution, not revenue. */
+export function injectCapital(d: Dealership, amount: number): void {
+  d.ledger.cash += amount;
+  d.ledger.ownerEquityContributed += amount;
+}
+
 export function restockParts(d: Dealership, cost: number): void {
   d.ledger.cash -= cost;
   d.ledger.partsInventoryValue += cost;
