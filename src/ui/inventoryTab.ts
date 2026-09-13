@@ -1,5 +1,5 @@
 import type { TabModule } from "./types.js";
-import type { Dealership, ReconStage, Vehicle, VehicleCondition } from "../types.js";
+import type { Dealership, ReconStage, Vehicle } from "../types.js";
 import { meterClass, money } from "./format.js";
 import { escapeHtml } from "./app.js";
 import {
@@ -18,7 +18,6 @@ interface PerfRow {
   key: string;
   name: string;
   trim: string;
-  condition: VehicleCondition;
   thisMonth: number;
   lastMonth: number;
   grossThisMonth: number;
@@ -26,19 +25,19 @@ interface PerfRow {
   onLot: number;
 }
 
-/** Merges live catalog models (even ones with zero sales yet) with historical modelStats so "what's not moving" shows up, not just what sold. */
+/** New models only — matches what Manufacturer Allocation and its auto-pilot actually order. Merges the live catalog (even zero-sale models) with historical modelStats so "what's not moving" shows up, not just what sold. */
 function buildPerformanceRows(d: Dealership): PerfRow[] {
   const rows = new Map<string, PerfRow>();
   for (const m of allocationCatalog(d)) {
     const key = `new|${m.name}|${m.trim}`;
-    rows.set(key, { key, name: m.name, trim: m.trim, condition: "new", thisMonth: 0, lastMonth: 0, grossThisMonth: 0, avgDays: 0, onLot: 0 });
+    rows.set(key, { key, name: m.name, trim: m.trim, thisMonth: 0, lastMonth: 0, grossThisMonth: 0, avgDays: 0, onLot: 0 });
   }
   for (const stat of Object.values(d.modelStats)) {
+    if (stat.condition !== "new") continue;
     rows.set(stat.key, {
       key: stat.key,
       name: stat.name,
       trim: stat.trim,
-      condition: stat.condition,
       thisMonth: stat.unitsSoldThisMonth,
       lastMonth: stat.unitsSoldLastMonth,
       grossThisMonth: stat.grossThisMonth,
@@ -47,7 +46,7 @@ function buildPerformanceRows(d: Dealership): PerfRow[] {
     });
   }
   for (const row of rows.values()) {
-    row.onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.condition === row.condition && v.model.name === row.name && v.model.trim === row.trim).length;
+    row.onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.condition === "new" && v.model.name === row.name && v.model.trim === row.trim).length;
   }
   return [...rows.values()]
     .filter((r) => r.onLot > 0 || r.thisMonth > 0 || r.lastMonth > 0)
@@ -156,18 +155,17 @@ export const inventoryTab: TabModule = {
     const perfRows = buildPerformanceRows(d);
     const performancePanel = `
       <div class="card">
-        <h3>Model Performance</h3>
-        <p class="text-faint" style="font-size:11.5px;">What's actually moving off the lot, by model and trim — use it to decide what to order (or trust auto-pilot to read it for you).</p>
+        <h3>Model Performance — New</h3>
+        <p class="text-faint" style="font-size:11.5px;">What's actually moving off the lot, by new model and trim — use it to decide what to order (or trust auto-pilot to read it for you).</p>
         ${perfRows.length === 0 ? '<div class="list-empty">No sales history yet.</div>' : `
         <div class="table-wrap"><table>
-          <thead><tr><th>Model</th><th>Cond</th><th class="num">Sold This Mo</th><th class="num">Sold Last Mo</th><th class="num">Gross This Mo</th><th class="num">Avg Days to Sell</th><th class="num">On Lot Now</th><th></th></tr></thead>
+          <thead><tr><th>Model</th><th class="num">Sold This Mo</th><th class="num">Sold Last Mo</th><th class="num">Gross This Mo</th><th class="num">Avg Days to Sell</th><th class="num">On Lot Now</th><th></th></tr></thead>
           <tbody>
             ${perfRows.map((r) => {
               const slowMover = r.onLot >= 3 && r.thisMonth === 0 && r.lastMonth === 0;
               const hot = r.thisMonth >= 3;
               return `<tr>
                 <td>${escapeHtml(r.name)} ${escapeHtml(r.trim)}</td>
-                <td>${r.condition === "new" ? "New" : "Used"}</td>
                 <td class="num">${r.thisMonth}</td>
                 <td class="num">${r.lastMonth}</td>
                 <td class="num">${money(r.grossThisMonth)}</td>
