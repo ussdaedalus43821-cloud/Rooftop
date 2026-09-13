@@ -1,4 +1,4 @@
-import type { Deal, Dealership, FiProductOffer, Vehicle } from "../types.js";
+import type { Deal, Dealership, FiProductOffer, StaffMember, Vehicle } from "../types.js";
 import { Rng } from "../rng.js";
 import { buildTerms } from "./salesFloor.js";
 import { closeDeal } from "./dealClose.js";
@@ -10,7 +10,18 @@ const PRODUCT_DEFS: { key: FiProductOffer["key"]; label: string; priceFrac: numb
   { key: "aftermarket", label: "Aftermarket Package (paint/fabric/accessories)", priceFrac: 0.02, costFrac: 0.4 },
 ];
 
-export function enterFi(deal: Deal): void {
+/** Whichever F&I manager has closed the fewest deals this month — keeps work (and credit) spread across everyone hired instead of always landing on the same one. */
+function pickFiManager(d: Dealership): StaffMember | null {
+  const mgrs = d.staff.filter((s) => s.role === "fi_manager");
+  if (mgrs.length === 0) return null;
+  return [...mgrs].sort((a, b) => a.dealsThisMonth - b.dealsThisMonth)[0];
+}
+
+export function enterFi(d: Dealership, deal: Deal): void {
+  if (!deal.fiManagerId) {
+    const mgr = pickFiManager(d);
+    if (mgr) deal.fiManagerId = mgr.id;
+  }
   deal.stage = "fi";
 }
 
@@ -45,7 +56,7 @@ export function estimateFinanceReserve(deal: Deal): number {
 }
 
 function fiManagerSkill(d: Dealership, deal: Deal): number {
-  const mgr = d.staff.find((s) => s.role === "fi_manager");
+  const mgr = deal.fiManagerId ? d.staff.find((s) => s.id === deal.fiManagerId) : undefined;
   return mgr ? mgr.skill : 40;
 }
 
@@ -69,7 +80,7 @@ export function pitchProduct(d: Dealership, deal: Deal, productKey: FiProductOff
  * pitches every product on the menu, then closes the deal.
  */
 export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
-  if (deal.stage === "agreed") enterFi(deal);
+  if (deal.stage === "agreed") enterFi(d, deal);
   if (deal.fiProducts.length === 0) deal.fiProducts = buildFiMenu(vehicle);
 
   const skill = fiManagerSkill(d, deal);
@@ -89,7 +100,7 @@ export function finalizeFiAndClose(d: Dealership, deal: Deal, vehicle: Vehicle, 
   const productsProfit = deal.fiProducts.filter((p) => p.attached).reduce((sum, p) => sum + (p.price - p.cost), 0);
   deal.fiGross = reserve + productsProfit;
 
-  const mgr = d.staff.find((s) => s.role === "fi_manager");
+  const mgr = deal.fiManagerId ? d.staff.find((s) => s.id === deal.fiManagerId) : undefined;
   if (mgr) {
     mgr.dealsThisMonth += 1;
     mgr.grossThisMonth += deal.fiGross;

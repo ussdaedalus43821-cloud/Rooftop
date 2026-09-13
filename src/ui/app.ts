@@ -112,10 +112,14 @@ export function render(): void {
   const d = state.dealerships[state.activeDealershipId];
   const inv = totalAssets(d) - totalLiabilities(d);
 
+  // Buttons, not a <select>: the game loop re-renders (replacing this whole
+  // element) many times a second at higher speeds, which blows away an open
+  // native dropdown before a click on it can land. A button's click fires
+  // and resolves in one synchronous step, so it survives that churn.
   const dealershipSwitcher = Object.keys(state.dealerships).length > 1
-    ? `<select data-action="global:switchDealership" class="btn btn-sm" style="margin-left:8px;">
-        ${Object.values(state.dealerships).map((x) => `<option value="${x.id}" ${x.id === state.activeDealershipId ? "selected" : ""}>${escapeHtml(x.name)}</option>`).join("")}
-      </select>`
+    ? `<div class="dealership-switcher">
+        ${Object.values(state.dealerships).map((x) => `<button class="btn btn-sm ${x.id === state.activeDealershipId ? "btn-primary" : ""}" data-action="global:switchDealership" data-dealership="${x.id}">${escapeHtml(x.name)}</button>`).join("")}
+      </div>`
     : "";
 
   const tabsHtml = TABS.map((t) => {
@@ -244,6 +248,12 @@ function onClick(e: MouseEvent): void {
     render();
     return;
   }
+  if (action === "global:switchDealership") {
+    const id = target.getAttribute("data-dealership");
+    if (id && ctx.state.dealerships[id]) ctx.state.activeDealershipId = id;
+    render();
+    return;
+  }
   if (action === "milestone:choose") {
     const choice = target.getAttribute("data-choice") as "equity" | "new_rooftop" | "decline";
     resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng);
@@ -307,11 +317,6 @@ function onInput(e: Event): void {
   }
   if (action === "newgame:setBrand" && target instanceof HTMLSelectElement) {
     pickerBrand = (target.value || null) as FranchiseKey | null;
-    render();
-    return;
-  }
-  if (action === "global:switchDealership" && target instanceof HTMLSelectElement) {
-    ctx.state.activeDealershipId = target.value;
     render();
     return;
   }

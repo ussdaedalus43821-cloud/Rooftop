@@ -47,8 +47,9 @@ export const fiTab: TabModule = {
         const reserveEstimate = estimateFinanceReserve(selected);
         const productsProfit = selected.fiProducts.filter((p) => p.attached).reduce((s, p) => s + (p.price - p.cost), 0);
 
+        const assignedMgr = selected.fiManagerId ? d.staff.find((s) => s.id === selected.fiManagerId) : undefined;
         panel = `
-        <div class="section-title">F&amp;I Desk — ${escapeHtml(selected.customer.name)}</div>
+        <div class="section-title">F&amp;I Desk — ${escapeHtml(selected.customer.name)}${assignedMgr ? ` · ${escapeHtml(assignedMgr.name)}` : ""}</div>
         <div class="grid grid-cols-2">
           <div class="card">
             <h3>Financing</h3>
@@ -133,7 +134,7 @@ export const fiTab: TabModule = {
       if (!deal) return false;
       const v = d.vehicles.find((x) => x.id === deal.vehicleId);
       if (deal.stage === "agreed" && v) {
-        enterFi(deal);
+        enterFi(d, deal);
         if (deal.fiProducts.length === 0) deal.fiProducts = buildFiMenu(v);
       }
       selectedDealId = deal.id;

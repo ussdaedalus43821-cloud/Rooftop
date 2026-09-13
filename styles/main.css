@@ -53,6 +53,7 @@ html, body {
 }
 .brand .logo { font-weight: 800; font-size: 18px; letter-spacing: 0.5px; }
 .brand .store-name { color: var(--text-dim); font-size: 13px; }
+.dealership-switcher { display: flex; gap: 4px; flex-wrap: wrap; }
 
 .clock-cluster {
   display: flex;
