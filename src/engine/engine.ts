@@ -3,7 +3,8 @@ import { Rng } from "../rng.js";
 import { isNewMonth, monthLabel } from "./clock.js";
 import { tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
-import { dailyUpCount, tryCreateUp } from "./salesFloor.js";
+import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
+import { autoRunFi } from "./fi.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
 import {
@@ -43,6 +44,31 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   const ups = dailyUpCount(d, rng);
   for (let i = 0; i < ups; i++) {
     tryCreateUp(d, state.day, rng);
+  }
+
+  if (d.autoPilot.sales) {
+    for (const deal of d.deals) {
+      if (deal.stage !== "negotiating") continue;
+      const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
+      if (!vehicle) continue;
+      const outcome = autoNegotiateDeal(d, deal, vehicle, rng);
+      const repName = d.staff.find((s) => s.id === deal.salespersonId)?.name ?? "your rep";
+      if (outcome?.outcome === "accept") {
+        pushToast(state, `${repName} closed ${deal.customer.name} at $${Math.round(deal.terms.price).toLocaleString()}.`, "good");
+      } else if (outcome?.outcome === "walk") {
+        pushToast(state, `${deal.customer.name} walked away from ${repName}.`, "warn");
+      }
+    }
+  }
+
+  if (d.autoPilot.fi) {
+    for (const deal of d.deals) {
+      if (deal.stage !== "agreed" && deal.stage !== "fi") continue;
+      const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
+      if (!vehicle) continue;
+      autoRunFi(d, deal, vehicle, state.day, rng);
+      pushToast(state, `F&I closed ${deal.customer.name}'s deal. Total gross $${Math.round(deal.frontEndGross + deal.fiGross).toLocaleString()}.`, "good");
+    }
   }
 
   for (const deal of d.deals) {

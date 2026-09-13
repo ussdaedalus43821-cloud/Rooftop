@@ -15,7 +15,11 @@ export function loadGame(): GameState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as GameState;
+    const state = JSON.parse(raw) as GameState;
+    for (const d of Object.values(state.dealerships)) {
+      if (!d.autoPilot) d.autoPilot = { sales: false, fi: false };
+    }
+    return state;
   } catch (err) {
     console.error("Rooftop: failed to load game", err);
     return null;

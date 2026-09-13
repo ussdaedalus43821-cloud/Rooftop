@@ -62,6 +62,27 @@ export function pitchProduct(d: Dealership, deal: Deal, productKey: FiProductOff
   return attached;
 }
 
+/**
+ * Let a hired F&I manager run the desk end-to-end using their own skill,
+ * instead of requiring the player to set the markup and pitch every
+ * product by hand. A skilled manager pushes the reserve markup harder and
+ * pitches every product on the menu, then closes the deal.
+ */
+export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
+  if (deal.stage === "agreed") enterFi(deal);
+  if (deal.fiProducts.length === 0) deal.fiProducts = buildFiMenu(vehicle);
+
+  const skill = fiManagerSkill(d, deal);
+  const markup = clamp(0.005 + (skill / 100) * 0.02, 0, 0.03);
+  setFinanceMarkup(deal, markup);
+
+  for (const product of deal.fiProducts) {
+    if (!product.pitched) pitchProduct(d, deal, product.key, rng);
+  }
+
+  finalizeFiAndClose(d, deal, vehicle, day, rng);
+}
+
 export function finalizeFiAndClose(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
   const reserve = estimateFinanceReserve(deal);
   deal.financeReserve = reserve;

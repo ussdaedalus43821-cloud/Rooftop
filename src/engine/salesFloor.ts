@@ -209,6 +209,43 @@ function counterTerms(deal: Deal, vehicle: Vehicle, customer: Customer): FourSqu
   return buildTerms(nudgedPrice, nudgedTrade, deal.terms.downPayment, deal.terms.termMonths, deal.terms.aprBuyRate, deal.terms.aprSellRate);
 }
 
+/**
+ * Let a hired salesperson work a deal end-to-end using their own skill,
+ * instead of requiring the player to pick every number. A skilled rep opens
+ * closer to the customer's ceiling (more profit) and negotiates the trade
+ * more firmly; a green rep opens closer to the customer's target (safer,
+ * thinner gross). Reuses the same round-by-round negotiation math a player
+ * would drive by hand, just run to resolution in one pass.
+ */
+export function autoNegotiateDeal(d: Dealership, deal: Deal, vehicle: Vehicle, rng: Rng): OfferOutcome | null {
+  const rep = d.staff.find((s) => s.id === deal.salespersonId);
+  const skill = clamp(rep ? rep.skill : 40, 0, 100);
+  const aggressiveness = clamp(0.35 + (skill / 100) * 0.55, 0.35, 0.9);
+
+  const target = customerTargetPrice(deal.customer, vehicle);
+  const ceiling = target * (1 + deal.customer.priceFlexibility);
+  let price = Math.round(target + (ceiling - target) * aggressiveness);
+
+  let tradeAllowance = deal.terms.tradeAllowance;
+  if (deal.customer.hasTrade && deal.customer.tradeVehicle) {
+    const fairFloor = deal.customer.tradeVehicle.marketValue * 0.85;
+    const wanted = deal.customer.tradeVehicle.marketValue * 0.95;
+    tradeAllowance = Math.round(wanted - (wanted - fairFloor) * aggressiveness);
+  }
+
+  let outcome: OfferOutcome | null = null;
+  let guard = 0;
+  while (deal.stage === "negotiating" && guard < 8) {
+    guard += 1;
+    const terms = buildTerms(price, tradeAllowance, deal.terms.downPayment, deal.terms.termMonths, deal.terms.aprBuyRate, deal.terms.aprSellRate);
+    outcome = submitOffer(d, deal, vehicle, terms, rng);
+    if (outcome.outcome !== "counter") break;
+    price = deal.terms.price;
+    tradeAllowance = deal.terms.tradeAllowance;
+  }
+  return outcome;
+}
+
 export function submitOffer(d: Dealership, deal: Deal, vehicle: Vehicle, proposed: FourSquareTerms, rng: Rng): OfferOutcome {
   deal.terms = proposed;
   const result = evaluateOffer(d, deal, vehicle, rng);

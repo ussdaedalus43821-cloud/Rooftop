@@ -99,6 +99,12 @@ export const fiTab: TabModule = {
     const staffPanel = `
       <div class="section-title">F&amp;I Staff</div>
       <div class="card">
+        <div class="btn-row" style="margin-bottom:10px;">
+          <button class="btn ${d.autoPilot.fi ? "btn-good" : ""}" data-action="fi:toggleAutoPilot">
+            Auto-Pilot: ${d.autoPilot.fi ? "ON — your manager runs the desk" : "OFF — you run the desk yourself"}
+          </button>
+        </div>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, your F&amp;I manager sets the markup and pitches every product on their own each day using their skill — more skilled managers push the reserve harder. Turn it off to run the desk by hand again.</p>
         <table>
           <thead><tr><th>Name</th><th class="num">Skill</th><th class="num">Deals MTD</th><th class="num">Gross MTD</th><th></th></tr></thead>
           <tbody>
@@ -162,6 +168,10 @@ export const fiTab: TabModule = {
     }
     if (action === "fi:fire") {
       fireStaff(d, target.getAttribute("data-staff")!);
+      return true;
+    }
+    if (action === "fi:toggleAutoPilot") {
+      d.autoPilot.fi = !d.autoPilot.fi;
       return true;
     }
     return false;
