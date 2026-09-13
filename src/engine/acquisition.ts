@@ -3,6 +3,7 @@ import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
 import { financeAcquisition } from "./financials.js";
+import { lotSpaceRemaining } from "./inventory.js";
 
 const TIER_DESIRABILITY_CAP: Record<AllocationTier, number> = {
   bronze: 0.55,
@@ -75,7 +76,7 @@ export function makeVehicle(model: VehicleModel, condition: "new" | "used", sour
 }
 
 export function orderAllocationUnit(d: Dealership, model: VehicleModel, day: number, rng: Rng): Vehicle | null {
-  if (allocationRemainingThisMonth(d) <= 0) return null;
+  if (allocationRemainingThisMonth(d) <= 0 || lotSpaceRemaining(d) <= 0) return null;
   const v = makeVehicle(model, "new", "allocation", day, rng, rng.int(4, 15));
   financeAcquisition(d, v, model.invoice);
   d.vehicles.push(v);
@@ -168,6 +169,7 @@ export interface AuctionResult {
   finalPrice: number;
   buyFee: number;
   vehicle?: Vehicle;
+  lotFull?: boolean; // won the bid but there was nowhere to put the car
 }
 
 export function bidOnAuctionLot(d: Dealership, lot: AuctionLot, bid: number, day: number, rng: Rng): AuctionResult {
@@ -182,6 +184,7 @@ export function bidOnAuctionLot(d: Dealership, lot: AuctionLot, bid: number, day
   if (bid < lot.minBid) return { won: false, finalPrice: 0, buyFee };
   const won = bid >= competitivePrice;
   if (!won) return { won: false, finalPrice: 0, buyFee };
+  if (lotSpaceRemaining(d) <= 0) return { won: false, finalPrice: 0, buyFee, lotFull: true };
   const v = makeVehicle(lot.model, "used", "auction", day, rng, lot.odometer);
   financeAcquisition(d, v, bid + buyFee);
   d.vehicles.push(v);
@@ -198,6 +201,7 @@ export function autoBidAuctionLots(d: Dealership, day: number, rng: Rng): Auctio
   const lots = auctionLotsForToday(d, day, rng);
   const results: AuctionResult[] = [];
   for (const lot of [...lots]) {
+    if (lotSpaceRemaining(d) <= 0) break;
     const targetBid = Math.round(lot.marketValue * (1 - d.auctionAutoBidDiscountPct / 100));
     if (targetBid < lot.minBid) continue;
     const result = bidOnAuctionLot(d, lot, targetBid, day, rng);

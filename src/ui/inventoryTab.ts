@@ -1,6 +1,6 @@
 import type { TabModule } from "./types.js";
 import type { Dealership, ReconStage, Vehicle, VehicleCondition } from "../types.js";
-import { money } from "./format.js";
+import { meterClass, money } from "./format.js";
 import { escapeHtml } from "./app.js";
 import {
   allocationCatalog,
@@ -10,7 +10,7 @@ import {
   orderAllocationUnit,
   bidOnAuctionLot,
 } from "../engine/acquisition.js";
-import { getCurtailmentDue, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
+import { currentLotUsage, getCurtailmentDue, lotCapacity, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
 import { pushToast } from "../engine/engine.js";
 import { getFranchiseOption } from "../constants.js";
 
@@ -98,6 +98,22 @@ export const inventoryTab: TabModule = {
     const columns: ReconStage[] = ["acquired", "inspected", "reconditioning", "ready", "listed"];
     const heldSold = d.vehicles.filter((v) => v.stage === "sold");
 
+    const capacity = lotCapacity(d);
+    const usage = currentLotUsage(d);
+    const lotFull = usage >= capacity;
+    const remainingPct = 100 - (usage / capacity) * 100;
+    const capacityBanner = `
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div class="text-faint" style="font-size:11px;">LOT CAPACITY</div>
+            <div class="big-number ${lotFull ? "text-bad" : ""}">${usage}/${capacity}</div>
+          </div>
+          <div class="meter ${meterClass(remainingPct, 25, 10)}" style="flex:1;min-width:160px;max-width:340px;"><div style="width:${Math.min(100, (usage / capacity) * 100)}%"></div></div>
+        </div>
+        <p class="text-faint" style="font-size:11.5px;margin:8px 0 0;">Every unsold unit — any recon stage — counts against this, whatever brought it in. ${lotFull ? "Full: factory orders and auction bids are turned away until something sells or moves out." : "Grows with facility investment (Manufacturer Relations tab)."}</p>
+      </div>`;
+
     const kanban = `
       <div class="kanban">
         ${columns.map((stage) => {
@@ -124,14 +140,14 @@ export const inventoryTab: TabModule = {
             Auto-Pilot: ${d.autoPilot.allocation ? "ON — restocking your best sellers" : "OFF — you order yourself"}
           </button>
         </div>
-        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, orders one unit a day of whichever model is selling best (last month's pace, new models get a shot based on desirability), skipping anything already sitting 4+ deep unsold.</p>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, orders one unit a day of whichever model is selling best (last month's pace, new models get a shot based on desirability), skipping anything already sitting 4+ deep unsold — and pausing on its own once the lot is full.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Model</th><th>Trim</th><th class="num">Invoice</th><th class="num">MSRP</th><th></th></tr></thead>
           <tbody>
             ${catalog.map((m, i) => `<tr>
               <td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.trim)}</td>
               <td class="num">${money(m.invoice)}</td><td class="num">${money(m.msrp)}</td>
-              <td><button class="btn btn-sm btn-primary" data-action="inventory:order" data-model="${i}" ${remaining <= 0 ? "disabled" : ""}>Order</button></td>
+              <td><button class="btn btn-sm btn-primary" data-action="inventory:order" data-model="${i}" ${remaining <= 0 || lotFull ? "disabled" : ""}>Order</button></td>
             </tr>`).join("")}
           </tbody>
         </table></div>
@@ -180,7 +196,7 @@ export const inventoryTab: TabModule = {
             % below market
           </label>
         </div>
-        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, auto-pilot bids ${discountPct}% below each lot's market value once per day — skipping any lot where that bid falls below the house's minimum. Lower the discount to win more often; raise it to hold out for a bigger bargain.</p>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, auto-pilot bids ${discountPct}% below each lot's market value once per day — skipping any lot where that bid falls below the house's minimum, and stopping on its own once the lot is full. Lower the discount to win more often; raise it to hold out for a bigger bargain.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Vehicle</th><th class="num">Odometer</th><th class="num">Market Value</th><th class="num">Min Bid</th><th class="num">Buyer's Fee</th><th>Your Bid</th><th></th></tr></thead>
           <tbody>
@@ -190,8 +206,8 @@ export const inventoryTab: TabModule = {
               <td class="num">${money(lot.marketValue)}</td>
               <td class="num">${money(lot.minBid)}</td>
               <td class="num text-faint">+${money(auctionBuyFee(lot))}</td>
-              <td><input type="number" step="100" style="width:100px;" id="bid-${lot.id}" value="${lot.minBid}" ${d.autoPilot.auction ? "disabled" : ""} /></td>
-              <td><button class="btn btn-sm btn-primary" data-action="inventory:bid" data-lot="${lot.id}" ${d.autoPilot.auction ? "disabled" : ""}>Bid</button></td>
+              <td><input type="number" step="100" style="width:100px;" id="bid-${lot.id}" value="${lot.minBid}" ${d.autoPilot.auction || lotFull ? "disabled" : ""} /></td>
+              <td><button class="btn btn-sm btn-primary" data-action="inventory:bid" data-lot="${lot.id}" ${d.autoPilot.auction || lotFull ? "disabled" : ""}>Bid</button></td>
             </tr>`).join("")}
           </tbody>
         </table></div>
@@ -214,7 +230,7 @@ export const inventoryTab: TabModule = {
         <p class="text-faint" style="font-size:11.5px;margin-top:8px;">Holding payoffs keeps sale proceeds in cash but leaves that unit's floor-plan balance outstanding — a live sold-out-of-trust exposure that raises audit risk the longer it's held.</p>
       </div>`;
 
-    return `${kanban}${performancePanel}<div class="section-title">Acquire Inventory</div><div class="grid grid-cols-2">${allocationPanel}${auctionPanel}</div><div class="section-title">Floor-Plan Management</div>${floorPlanPanel}`;
+    return `${capacityBanner}${kanban}${performancePanel}<div class="section-title">Acquire Inventory</div><div class="grid grid-cols-2">${allocationPanel}${auctionPanel}</div><div class="section-title">Floor-Plan Management</div>${floorPlanPanel}`;
   },
   onAction(ctx, action, target) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
@@ -223,7 +239,8 @@ export const inventoryTab: TabModule = {
       const model = allocationCatalog(d)[idx];
       if (!model) return false;
       const v = orderAllocationUnit(d, model, ctx.state.day, ctx.rng);
-      pushToast(ctx.state, v ? `Ordered a ${model.name} ${model.trim} from the factory.` : "No allocation remaining this month.", v ? "good" : "warn");
+      const reason = currentLotUsage(d) >= lotCapacity(d) ? "The lot is full — nowhere to put it." : "No allocation remaining this month.";
+      pushToast(ctx.state, v ? `Ordered a ${model.name} ${model.trim} from the factory.` : reason, v ? "good" : "warn");
       return true;
     }
     if (action === "inventory:bid") {
@@ -237,6 +254,8 @@ export const inventoryTab: TabModule = {
       if (result.won) {
         d.auctionLots = d.auctionLots.filter((l) => l.id !== lotId);
         pushToast(ctx.state, `Won ${lot.model.name} ${lot.model.trim}: bid ${money(bid)} + ${money(result.buyFee)} fee = ${money(result.finalPrice)} total.`, "good");
+      } else if (result.lotFull) {
+        pushToast(ctx.state, `Won the bid on the ${lot.model.name} ${lot.model.trim}, but the lot is full — nowhere to put it.`, "warn");
       } else {
         pushToast(ctx.state, `Outbid on the ${lot.model.name} ${lot.model.trim}.`, "warn");
       }

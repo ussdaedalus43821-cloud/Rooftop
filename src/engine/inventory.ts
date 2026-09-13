@@ -148,3 +148,25 @@ export function inventoryBookValue(d: Dealership): number {
 export function unitsOnLot(d: Dealership): Vehicle[] {
   return d.vehicles.filter((v) => v.stage === "listed");
 }
+
+const BASE_LOT_CAPACITY = 30;
+const FACILITY_CAPACITY_PER_POINT = 0.4; // facilityStandards 0-100 adds up to +40 capacity at max investment
+
+/**
+ * A real lot only holds so many cars. Every unsold unit (whatever recon
+ * stage it's in) counts against this, whether it arrived via factory
+ * allocation, auction, or trade-in. Grows with facility investment — the
+ * same stat that already feeds manufacturer standing — so growing the lot
+ * is a real, ongoing choice rather than an afterthought.
+ */
+export function lotCapacity(d: Dealership): number {
+  return Math.round(BASE_LOT_CAPACITY + d.manufacturer.facilityStandards * FACILITY_CAPACITY_PER_POINT);
+}
+
+export function currentLotUsage(d: Dealership): number {
+  return d.vehicles.filter((v) => v.stage !== "sold").length;
+}
+
+export function lotSpaceRemaining(d: Dealership): number {
+  return Math.max(0, lotCapacity(d) - currentLotUsage(d));
+}
