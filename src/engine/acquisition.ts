@@ -33,8 +33,12 @@ function generateVin(rng: Rng): string {
   return vin;
 }
 
-export function allocationCatalog(d: Dealership): VehicleModel[] {
+/** `houseBrandModels`, when passed, comes from the player's own Manufacturer Co. (already fully-formed VehicleModels, invoice = transfer price) instead of a real franchise's catalog — used for any dealership with isHouseBrand set. */
+export function allocationCatalog(d: Dealership, houseBrandModels?: VehicleModel[]): VehicleModel[] {
   const cap = TIER_DESIRABILITY_CAP[d.manufacturer.tier];
+  if (houseBrandModels) {
+    return houseBrandModels.filter((m) => m.desirability <= cap);
+  }
   const brandModels = FRANCHISE_CATALOGS[d.manufacturer.franchiseKey];
   return brandModels.filter((m) => m.desirability <= cap).map((m) => ({
     name: m.name,
@@ -93,8 +97,8 @@ const AUTO_ORDER_MAX_ON_LOT_PER_MODEL = 4; // don't keep restocking a model that
  * yet. Skips any model already sitting several-deep unsold on the lot —
  * no point restocking what isn't selling.
  */
-function pickBestModelToOrder(d: Dealership): VehicleModel | null {
-  const candidates = allocationCatalog(d)
+function pickBestModelToOrder(d: Dealership, houseBrandModels?: VehicleModel[]): VehicleModel | null {
+  const candidates = allocationCatalog(d, houseBrandModels)
     .map((model) => {
       const onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.model.name === model.name && v.model.trim === model.trim).length;
       const stat = d.modelStats[`new|${model.name}|${model.trim}`];
@@ -112,9 +116,9 @@ function pickBestModelToOrder(d: Dealership): VehicleModel | null {
  * either nothing (forgetting to restock) or the whole month's allocation up
  * front (flooding recon with cars nobody's actually asking for).
  */
-export function autoOrderAllocation(d: Dealership, day: number, rng: Rng): Vehicle | null {
+export function autoOrderAllocation(d: Dealership, day: number, rng: Rng, houseBrandModels?: VehicleModel[]): Vehicle | null {
   if (d.isUsedOnly || allocationRemainingThisMonth(d) <= 0) return null;
-  const model = pickBestModelToOrder(d);
+  const model = pickBestModelToOrder(d, houseBrandModels);
   if (!model) return null;
   return orderAllocationUnit(d, model, day, rng);
 }

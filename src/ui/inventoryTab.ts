@@ -1,5 +1,5 @@
 import type { TabModule } from "./types.js";
-import type { Dealership, ReconStage, Vehicle } from "../types.js";
+import type { Dealership, ReconStage, Vehicle, VehicleModel } from "../types.js";
 import { meterClass, money } from "./format.js";
 import { escapeHtml } from "./app.js";
 import {
@@ -13,6 +13,7 @@ import {
 import { currentLotUsage, getCurtailmentDue, lotCapacity, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
 import { pushToast } from "../engine/engine.js";
 import { getFranchiseOption } from "../constants.js";
+import { liveHouseBrandCatalog, recordHouseBrandShipment } from "../engine/manufacturerCo.js";
 
 interface PerfRow {
   key: string;
@@ -26,9 +27,9 @@ interface PerfRow {
 }
 
 /** New models only — matches what Manufacturer Allocation and its auto-pilot actually order. Merges the live catalog (even zero-sale models) with historical modelStats so "what's not moving" shows up, not just what sold. */
-function buildPerformanceRows(d: Dealership): PerfRow[] {
+function buildPerformanceRows(d: Dealership, houseBrandModels?: VehicleModel[]): PerfRow[] {
   const rows = new Map<string, PerfRow>();
-  for (const m of allocationCatalog(d)) {
+  for (const m of allocationCatalog(d, houseBrandModels)) {
     const key = `new|${m.name}|${m.trim}`;
     rows.set(key, { key, name: m.name, trim: m.trim, thisMonth: 0, lastMonth: 0, grossThisMonth: 0, avgDays: 0, onLot: 0 });
   }
@@ -128,12 +129,13 @@ export const inventoryTab: TabModule = {
         </div>
       </div>`;
 
-    const catalog = allocationCatalog(d);
+    const houseBrandModels = d.isHouseBrand ? liveHouseBrandCatalog(ctx.state.manufacturerCo) : undefined;
+    const catalog = allocationCatalog(d, houseBrandModels);
     const remaining = allocationRemainingThisMonth(d);
-    const hasNoFranchise = getFranchiseOption(d.manufacturer.franchiseKey).baseQuota === 0;
+    const hasNoFranchise = d.isHouseBrand ? false : getFranchiseOption(d.manufacturer.franchiseKey).baseQuota === 0;
     const allocationPanel = d.isUsedOnly ? `<div class="card"><h3>Manufacturer Allocation</h3><p class="text-bad">${hasNoFranchise ? "No manufacturer relationship — this is a used-only, direct-to-consumer store. All inventory comes from auction and trade-ins." : "Franchise terminated — no new-vehicle allocation available. This store is used-only."}</p></div>` : `
       <div class="card">
-        <h3>Manufacturer Allocation — ${remaining}/${d.manufacturer.allocationCapMonthly} remaining this month</h3>
+        <h3>${d.isHouseBrand ? "Factory Allocation" : "Manufacturer Allocation"} — ${remaining}/${d.manufacturer.allocationCapMonthly} remaining this month</h3>
         <div class="btn-row" style="margin-bottom:10px;">
           <button class="btn ${d.autoPilot.allocation ? "btn-good" : ""}" data-action="inventory:toggleAllocationAutoPilot">
             Auto-Pilot: ${d.autoPilot.allocation ? "ON — restocking your best sellers" : "OFF — you order yourself"}
@@ -152,7 +154,7 @@ export const inventoryTab: TabModule = {
         </table></div>
       </div>`;
 
-    const perfRows = buildPerformanceRows(d);
+    const perfRows = buildPerformanceRows(d, houseBrandModels);
     const performancePanel = `
       <div class="card">
         <h3>Model Performance — New</h3>
@@ -234,9 +236,11 @@ export const inventoryTab: TabModule = {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
     if (action === "inventory:order") {
       const idx = Number(target.getAttribute("data-model"));
-      const model = allocationCatalog(d)[idx];
+      const houseBrandModels = d.isHouseBrand ? liveHouseBrandCatalog(ctx.state.manufacturerCo) : undefined;
+      const model = allocationCatalog(d, houseBrandModels)[idx];
       if (!model) return false;
       const v = orderAllocationUnit(d, model, ctx.state.day, ctx.rng);
+      if (v && d.isHouseBrand) recordHouseBrandShipment(ctx.state, model);
       const reason = currentLotUsage(d) >= lotCapacity(d) ? "The lot is full — nowhere to put it." : "No allocation remaining this month.";
       pushToast(ctx.state, v ? `Ordered a ${model.name} ${model.trim} from the factory.` : reason, v ? "good" : "warn");
       return true;

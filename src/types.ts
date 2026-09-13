@@ -308,6 +308,7 @@ export interface Dealership {
   modelStats: Record<string, ModelSalesStat>; // per name+trim+condition sales performance, keyed by ModelSalesStat.key
   acquiredDay?: number; // set only when this store was bought (competitor purchase), not founded — drives the recent-acquisition failure protection
   acquiredCost?: number; // what was paid to acquire it, for that same protection's partial refund
+  isHouseBrand: boolean; // sells the player's own Manufacturer Co. brand instead of a real franchise — no tier/quota/termination grind, allocation comes from state.manufacturerCo instead
 }
 
 export interface CompetitorTarget {
@@ -351,6 +352,24 @@ export interface PartsWarehouseState {
   lifetimeExternalProfit: number;
 }
 
+export interface ManufacturerCoState {
+  founded: boolean;
+  foundedDay: number;
+  brandName: string;
+  category: FranchiseCategory; // "brand personality" picked at founding, flavors the starter lineup
+  reputation: number; // 0-100, brand-wide; grows slowly over time and with marketing investment, boosts every model's live desirability
+  productionCostFactor: number; // 0-1 multiplier on a model's transfer price (its `invoice`) to get true production cost; falls toward a floor with R&D investment
+  models: VehicleModel[]; // starter lineup; each model's `invoice` field is the transfer price charged to house-brand dealerships (mirrors a real franchise catalog's invoice)
+  productionCapacity: number; // units/month across the whole lineup, shared out across every house-brand dealership, investable
+  cash: number; // retained (transfer price - production cost) profit, swept to the Group Treasury manually
+  unitsShippedThisMonth: number;
+  profitThisMonth: number;
+  lastMonthUnitsShipped: number;
+  lastMonthProfit: number;
+  lifetimeUnitsShipped: number;
+  lifetimeProfit: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -371,4 +390,5 @@ export interface GameState {
   groupTreasury: number; // cash pooled across all owned dealerships, outside any single store's own books
   captiveLender: CaptiveLenderState;
   partsWarehouse: PartsWarehouseState;
+  manufacturerCo: ManufacturerCoState;
 }

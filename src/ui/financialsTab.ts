@@ -1,7 +1,7 @@
 import type { TabModule } from "./types.js";
 import { money } from "./format.js";
 import { checkInvariant, totalAssets, totalEquity, totalLiabilities } from "../engine/financials.js";
-import { netWorthStanding } from "../engine/career.js";
+import { netWorthStanding, computeGroupNetWorth } from "../engine/career.js";
 
 export const financialsTab: TabModule = {
   key: "financials",
@@ -12,16 +12,13 @@ export const financialsTab: TabModule = {
     const history = [...d.monthlyHistory].slice(-12).reverse();
     const career = ctx.state.career;
 
-    const lender = ctx.state.captiveLender;
-    const warehouse = ctx.state.partsWarehouse;
-    const groupNetWorth = Object.values(ctx.state.dealerships).reduce((sum, x) => sum + (totalAssets(x) - totalLiabilities(x)), 0)
-      + ctx.state.groupTreasury + lender.cash + lender.portfolioPrincipal + warehouse.cash;
+    const groupNetWorth = computeGroupNetWorth(ctx.state);
     const standing = netWorthStanding(groupNetWorth);
     const empireCard = `
       <div class="card">
         <h3>Empire Standing</h3>
         <div class="big-number">${standing.tier.title}</div>
-        <div class="sub">Group net worth (all rooftops, treasury, captive lender &amp; warehouse): ${money(groupNetWorth)}</div>
+        <div class="sub">Group net worth (all rooftops, treasury, captive lender, warehouse &amp; manufacturer): ${money(groupNetWorth)}</div>
         ${standing.next ? `
         <div class="meter" style="margin-top:8px;"><div style="width:${Math.round(standing.progressToNext * 100)}%"></div></div>
         <div class="sub" style="margin-top:4px;">${money(standing.next.threshold - groupNetWorth > 0 ? standing.next.threshold - groupNetWorth : 0)} to reach "${standing.next.title}"</div>

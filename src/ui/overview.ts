@@ -25,6 +25,27 @@ import {
   capacityUpgradeMaxed,
   type PartsWarehouseFunding,
 } from "../engine/partsWarehouse.js";
+import {
+  MANUFACTURER_CO_UNLOCK_NET_WORTH,
+  manufacturerCoFoundCost,
+  manufacturerCoUnlocked,
+  foundManufacturerCo,
+  houseBrandNewStoreCost,
+  foundHouseBrandDealership,
+  houseBrandConversionCost,
+  convertToHouseBrand,
+  rAndDCost,
+  rAndDMaxed,
+  investInRnD,
+  manufacturerCapacityCost,
+  manufacturerCapacityMaxed,
+  investInManufacturerCapacity,
+  marketingCost,
+  investInMarketing,
+  sweepManufacturerCoCash,
+  type ManufacturerCoFunding,
+} from "../engine/manufacturerCo.js";
+import { computeGroupNetWorth } from "../engine/career.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -35,6 +56,9 @@ let buildBrand: FranchiseKey | null = null;
 let buildFunding: FundingSource = "active";
 let captiveLenderFunding: CaptiveLenderFunding = "active";
 let warehouseFunding: PartsWarehouseFunding = "active";
+let mfgFunding: ManufacturerCoFunding = "active";
+let mfgCategory: FranchiseCategory | null = null;
+let mfgBrandNameDraft = "";
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -208,6 +232,96 @@ export const overviewTab: TabModule = {
       </div>`;
     })();
 
+    const manufacturerCard = ctx.state.career.role === "gm" ? "" : (() => {
+      const mc = ctx.state.manufacturerCo;
+      if (!mc.founded) {
+        const netWorth = computeGroupNetWorth(ctx.state);
+        if (!manufacturerCoUnlocked(ctx.state)) {
+          return `
+          <div class="card">
+            <h3>Found Your Own Manufacturer</h3>
+            <p class="text-faint" style="font-size:11.5px;">The capstone: stop buying someone else's franchise and build your own vehicles instead. Unlocks once your group's net worth reaches ${money(MANUFACTURER_CO_UNLOCK_NET_WORTH)}.</p>
+            <div class="meter" style="margin-top:8px;"><div style="width:${Math.min(100, (netWorth / MANUFACTURER_CO_UNLOCK_NET_WORTH) * 100)}%"></div></div>
+            <p class="sub" style="margin-top:4px;">${money(netWorth)} / ${money(MANUFACTURER_CO_UNLOCK_NET_WORTH)}</p>
+          </div>`;
+        }
+        const cost = manufacturerCoFoundCost();
+        const affordable = mfgFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost;
+        const canFound = affordable && !!mfgCategory && mfgBrandNameDraft.trim().length > 0;
+        return `
+        <div class="card">
+          <h3>Found Your Own Manufacturer</h3>
+          <p class="text-faint" style="font-size:11.5px;">Name your brand, pick its personality, and stand up a starter lineup. Every unit you ship to your own dealerships from then on earns you both the manufacturer's margin and the dealer's margin — two profit centers on one car, same as a real OEM enjoys.</p>
+          <div class="form-row">
+            <label>Brand name</label>
+            <input type="text" placeholder="e.g. Meridian Motors" value="${escapeHtml(mfgBrandNameDraft)}" data-action="overview:setMfgBrandName" />
+          </div>
+          <div class="form-row">
+            <label>Brand personality</label>
+            <select data-action="overview:setMfgCategory">
+              <option value="" ${!mfgCategory ? "selected" : ""}>— Select —</option>
+              ${FRANCHISE_CATEGORIES.map((c) => `<option value="${c.key}" ${mfgCategory === c.key ? "selected" : ""}>${escapeHtml(c.label)}</option>`).join("")}
+            </select>
+          </div>
+          <p style="font-size:12.5px;">Founding cost: <strong>${money(cost)}</strong></p>
+          <div class="form-row">
+            <label>Pay from:</label>
+            <select data-action="overview:mfgFundingSource">
+              <option value="active" ${mfgFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+              <option value="treasury" ${mfgFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+            </select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" data-action="overview:foundManufacturer" ${canFound ? "" : "disabled"}>Found Your Manufacturer</button>
+          </div>
+        </div>`;
+      }
+
+      const newStoreCost = houseBrandNewStoreCost();
+      const conversionCost = houseBrandConversionCost();
+      const rndCost = rAndDCost(ctx.state);
+      const rndMaxed = rAndDMaxed(ctx.state);
+      const capCost = manufacturerCapacityCost(ctx.state);
+      const capMaxed = manufacturerCapacityMaxed(ctx.state);
+      const mktCost = marketingCost(ctx.state);
+      const reputationMaxed = mc.reputation >= 100;
+
+      return `
+      <div class="card">
+        <h3>${escapeHtml(mc.brandName)} — Manufacturing Co.</h3>
+        <div class="grid grid-cols-3">
+          <div><div class="text-faint" style="font-size:11px;">Production Capacity</div><div class="mono">${mc.productionCapacity.toLocaleString()} units/mo</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Production Cost</div><div class="mono">${pct(mc.productionCostFactor, 0)} of transfer price</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Brand Reputation</div><div class="mono">${Math.round(mc.reputation)}/100</div></div>
+        </div>
+        <div class="grid grid-cols-3" style="margin-top:10px;">
+          <div><div class="text-faint" style="font-size:11px;">Units Shipped Last Month</div><div class="mono">${mc.lastMonthUnitsShipped}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Profit Last Month</div><div class="mono text-good">${money(mc.lastMonthProfit)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Uncollected Cash</div><div class="mono text-good">${money(mc.cash)}</div></div>
+        </div>
+        <div class="table-wrap" style="margin-top:10px;"><table>
+          <thead><tr><th>Model</th><th>Class</th><th class="num">Transfer Price</th><th class="num">MSRP</th></tr></thead>
+          <tbody>
+            ${mc.models.map((model) => `<tr><td>${escapeHtml(model.name)}</td><td style="text-transform:capitalize;">${model.class}</td><td class="num">${money(model.invoice)}</td><td class="num">${money(model.msrp)}</td></tr>`).join("")}
+          </tbody>
+        </table></div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn btn-sm" data-action="overview:investMfgRnD" ${rndMaxed || d.ledger.cash < rndCost ? "disabled" : ""}>${rndMaxed ? "R&D Maxed" : `R&D: Cut Cost (${money(rndCost)})`}</button>
+          <button class="btn btn-sm" data-action="overview:investMfgCapacity" ${capMaxed || d.ledger.cash < capCost ? "disabled" : ""}>${capMaxed ? "Capacity Maxed" : `More Capacity (${money(capCost)})`}</button>
+          <button class="btn btn-sm" data-action="overview:investMfgMarketing" ${reputationMaxed || d.ledger.cash < mktCost ? "disabled" : ""}>${reputationMaxed ? "Reputation Maxed" : `Marketing Push (${money(mktCost)})`}</button>
+          <button class="btn btn-sm btn-primary" data-action="overview:sweepManufacturer" ${mc.cash <= 0 ? "disabled" : ""}>Sweep ${money(mc.cash)} To Treasury</button>
+        </div>
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">Investments paid from ${escapeHtml(d.name)}'s cash — the current store you're viewing.</p>
+      </div>
+      <div class="card">
+        <h3>Grow The ${escapeHtml(mc.brandName)} Network</h3>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="overview:foundHouseBrandStore" ${d.ledger.cash < newStoreCost ? "disabled" : ""}>Open A New ${escapeHtml(mc.brandName)} Store (${money(newStoreCost)}, from ${escapeHtml(d.name)})</button>
+          <button class="btn" data-action="overview:convertToHouseBrand" ${d.isHouseBrand || d.ledger.cash < conversionCost ? "disabled" : ""}>${d.isHouseBrand ? `${escapeHtml(d.name)} Already Sells ${escapeHtml(mc.brandName)}` : `Convert ${escapeHtml(d.name)} To ${escapeHtml(mc.brandName)} (${money(conversionCost)})`}</button>
+        </div>
+      </div>`;
+    })();
+
     const expansionCard = ctx.state.career.role === "gm" ? "" : (() => {
       const targets = acquisitionTargetsForMonth(ctx.state, ctx.rng);
       return `
@@ -270,9 +384,10 @@ export const overviewTab: TabModule = {
       <div class="section-title">Franchise &amp; Floor-Plan Standing</div>
       <div class="grid grid-cols-3">
         <div class="card">
-          <h3>Allocation Tier</h3>
-          <div class="big-number" style="text-transform:capitalize;">${d.manufacturer.tier}</div>
-          <div class="sub">Quota: ${d.manufacturer.quotaAttainedThisMonth}/${d.manufacturer.quotaUnitsMonthly} units this month</div>
+          <h3>${d.isHouseBrand ? "Factory Allocation" : "Allocation Tier"}</h3>
+          ${d.isHouseBrand
+            ? `<div class="big-number">${d.manufacturer.allocationCapMonthly}/mo</div><div class="sub">No quota — you can't be terminated by your own brand.</div>`
+            : `<div class="big-number" style="text-transform:capitalize;">${d.manufacturer.tier}</div><div class="sub">Quota: ${d.manufacturer.quotaAttainedThisMonth}/${d.manufacturer.quotaUnitsMonthly} units this month</div>`}
         </div>
         <div class="card">
           <h3>Floor-Plan Audit Risk</h3>
@@ -289,6 +404,7 @@ export const overviewTab: TabModule = {
       ${treasuryCard}
       ${captiveLenderCard}
       ${partsWarehouseCard}
+      ${manufacturerCard}
       ${expansionCard}
       ${buildRooftopCard}
     `;
@@ -345,6 +461,48 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
       return true;
     }
+    if (action === "overview:foundManufacturer") {
+      if (!mfgCategory) return false;
+      const result = foundManufacturerCo(ctx.state, mfgFunding, ctx.state.activeDealershipId, mfgBrandNameDraft, mfgCategory, ctx.rng);
+      pushToast(ctx.state, result.ok ? `${ctx.state.manufacturerCo.brandName} is founded! Open or convert a store to start selling it.` : (result.reason ?? "Couldn't found a manufacturer."), result.ok ? "good" : "warn");
+      if (result.ok) {
+        mfgCategory = null;
+        mfgBrandNameDraft = "";
+      }
+      return true;
+    }
+    if (action === "overview:foundHouseBrandStore") {
+      const result = foundHouseBrandDealership(ctx.state, mfgFunding, ctx.state.activeDealershipId, ctx.rng);
+      pushToast(ctx.state, result.ok ? "New house-brand store opened!" : (result.reason ?? "Couldn't open that store."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:convertToHouseBrand") {
+      const target = ctx.state.dealerships[ctx.state.activeDealershipId];
+      if (!confirm(`Convert ${target.name} to sell ${ctx.state.manufacturerCo.brandName} instead of its current franchise? This can't be undone.`)) return false;
+      const result = convertToHouseBrand(ctx.state, ctx.state.activeDealershipId);
+      pushToast(ctx.state, result.ok ? `${target.name} now sells ${ctx.state.manufacturerCo.brandName}.` : (result.reason ?? "Couldn't convert that store."), result.ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:investMfgRnD") {
+      const ok = investInRnD(ctx.state, ctx.state.activeDealershipId);
+      pushToast(ctx.state, ok ? "Production cost reduced." : "Couldn't invest in R&D.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:investMfgCapacity") {
+      const ok = investInManufacturerCapacity(ctx.state, ctx.state.activeDealershipId);
+      pushToast(ctx.state, ok ? "Production capacity expanded." : "Couldn't expand capacity.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:investMfgMarketing") {
+      const ok = investInMarketing(ctx.state, ctx.state.activeDealershipId);
+      pushToast(ctx.state, ok ? "Marketing push complete — brand reputation up." : "Couldn't run that campaign.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:sweepManufacturer") {
+      const amount = sweepManufacturerCoCash(ctx.state);
+      pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
+      return true;
+    }
     if (action === "overview:buildRooftop") {
       if (!buildBrand) return false;
       const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
@@ -364,6 +522,18 @@ export const overviewTab: TabModule = {
     }
     if (action === "overview:warehouseFundingSource" && target instanceof HTMLSelectElement) {
       warehouseFunding = target.value as PartsWarehouseFunding;
+      return true;
+    }
+    if (action === "overview:setMfgBrandName" && target instanceof HTMLInputElement) {
+      mfgBrandNameDraft = target.value;
+      return true;
+    }
+    if (action === "overview:setMfgCategory" && target instanceof HTMLSelectElement) {
+      mfgCategory = (target.value || null) as FranchiseCategory | null;
+      return true;
+    }
+    if (action === "overview:mfgFundingSource" && target instanceof HTMLSelectElement) {
+      mfgFunding = target.value as ManufacturerCoFunding;
       return true;
     }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {

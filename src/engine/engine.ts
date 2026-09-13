@@ -10,6 +10,7 @@ import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
+import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
 import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -56,8 +57,10 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   }
 
   if (d.autoPilot.allocation) {
-    const ordered = autoOrderAllocation(d, state.day, rng);
+    const houseBrandModels = d.isHouseBrand ? liveHouseBrandCatalog(state.manufacturerCo) : undefined;
+    const ordered = autoOrderAllocation(d, state.day, rng, houseBrandModels);
     if (ordered) {
+      if (d.isHouseBrand) recordHouseBrandShipment(state, ordered.model);
       pushToast(state, `Auto-ordered a ${ordered.model.name} ${ordered.model.trim} from the factory.`, "good");
     }
   }
@@ -142,7 +145,10 @@ function finalizeMonth(state: GameState, d: Dealership): number {
   d.monthlyHistory.push(d.currentMonth);
   if (d.monthlyHistory.length > 36) d.monthlyHistory.shift();
 
-  monthlyManufacturerCycle(d, state.day);
+  // A house-brand dealership can't be terminated by itself, so it skips the
+  // whole real-franchise tier/quota/compliance grind entirely — its
+  // allocation cap instead comes from monthlyManufacturerCoCycle below.
+  if (!d.isHouseBrand) monthlyManufacturerCycle(d, state.day);
   const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
 
@@ -205,6 +211,11 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     monthlyPartsWarehouseCycle(state, groupUnitsRestocked);
     if (state.partsWarehouse.chartered && (state.partsWarehouse.lastMonthExternalProfit > 0 || state.partsWarehouse.lastMonthInternalSavings > 0)) {
       pushToast(state, `Parts Warehouse: saved your group $${Math.round(state.partsWarehouse.lastMonthInternalSavings).toLocaleString()} on restocking and earned $${Math.round(state.partsWarehouse.lastMonthExternalProfit).toLocaleString()} distributing to outside shops.`, "good");
+    }
+
+    monthlyManufacturerCoCycle(state);
+    if (state.manufacturerCo.founded && state.manufacturerCo.lastMonthProfit > 0) {
+      pushToast(state, `${state.manufacturerCo.brandName}: shipped ${state.manufacturerCo.lastMonthUnitsShipped} unit${state.manufacturerCo.lastMonthUnitsShipped === 1 ? "" : "s"} to your dealerships, earning $${Math.round(state.manufacturerCo.lastMonthProfit).toLocaleString()} in manufacturing profit.`, "good");
     }
   }
 

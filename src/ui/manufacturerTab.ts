@@ -15,6 +15,42 @@ export const manufacturerTab: TabModule = {
   render(ctx) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
     const m = d.manufacturer;
+
+    if (d.isHouseBrand) {
+      const mc = ctx.state.manufacturerCo;
+      return `
+        <div class="card">
+          <h3>${escapeHtml(mc.brandName)} — House Brand</h3>
+          <p>This store sells nothing but your own ${escapeHtml(mc.brandName)} lineup — no franchise agreement, no tier to climb, no quota to fail. Manage brand reputation, production cost, and factory capacity from the Manufacturing Co. card on Overview.</p>
+        </div>
+        <div class="grid grid-cols-4">
+          <div class="card">
+            <h3>Factory Allocation</h3>
+            <div class="big-number">${m.allocationCapMonthly}/mo</div>
+            <div class="sub">Shared across every ${escapeHtml(mc.brandName)} store you run</div>
+          </div>
+          <div class="card">
+            <h3>Brand Reputation</h3>
+            <div class="big-number">${Math.round(mc.reputation)}<span style="font-size:14px;color:var(--text-faint)">/100</span></div>
+            <div class="meter" style="margin-top:8px;"><div style="width:${mc.reputation}%"></div></div>
+          </div>
+          <div class="card">
+            <h3>CSI Score</h3>
+            <div class="big-number ${m.csi < 60 ? "text-bad" : ""}">${Math.round(m.csi)}</div>
+            <div class="meter ${meterClass(m.csi, 75, 55)}" style="margin-top:8px;"><div style="width:${m.csi}%"></div></div>
+          </div>
+          <div class="card">
+            <h3>Facility Standards</h3>
+            <div class="big-number">${Math.round(m.facilityStandards)}</div>
+            <div class="meter ${meterClass(m.facilityStandards, 70, 50)}" style="margin-top:8px;"><div style="width:${m.facilityStandards}%"></div></div>
+            <div class="btn-row">
+              <button class="btn btn-primary" data-action="mfr:investFacility" ${d.ledger.cash < facilityInvestmentCost() ? "disabled" : ""}>Invest (${money(facilityInvestmentCost())})</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const hasNoFranchise = getFranchiseOption(m.franchiseKey).baseQuota === 0;
     const quotaPct = m.quotaUnitsMonthly > 0 ? Math.min(1, m.quotaAttainedThisMonth / m.quotaUnitsMonthly) : 1;
 

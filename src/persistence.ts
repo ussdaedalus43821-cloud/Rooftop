@@ -1,6 +1,7 @@
 import type { GameState } from "./types.js";
 import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
+import { newManufacturerCo } from "./engine/manufacturerCo.js";
 
 const SAVE_KEY = "rooftop.save.v1";
 const MAX_SERVICE_QUEUE = 150;
@@ -30,6 +31,7 @@ export function saveGame(state: GameState): SaveResult {
 /** Brings an older save up to the current shape. Shared by loadGame (localStorage) and importSaveFromFile (a JSON file the player picked), so a downloaded backup restores exactly like an autosave would. */
 function migrateState(state: GameState): GameState {
   for (const d of Object.values(state.dealerships)) {
+    if (d.isHouseBrand === undefined) d.isHouseBrand = false;
     if (!d.autoPilot) d.autoPilot = { sales: false, fi: false, auction: false, allocation: false };
     if (d.autoPilot.auction === undefined) d.autoPilot.auction = false;
     if (d.autoPilot.allocation === undefined) d.autoPilot.allocation = false;
@@ -67,6 +69,7 @@ function migrateState(state: GameState): GameState {
   if (state.groupTreasury === undefined) state.groupTreasury = 0;
   if (!state.captiveLender) state.captiveLender = newCaptiveLender();
   if (!state.partsWarehouse) state.partsWarehouse = newPartsWarehouse();
+  if (!state.manufacturerCo) state.manufacturerCo = newManufacturerCo();
   return state;
 }
 

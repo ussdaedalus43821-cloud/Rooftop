@@ -110,6 +110,16 @@ export interface NetWorthStanding {
   progressToNext: number; // 0-1, or 1 if at the top tier
 }
 
+/** Total wealth across everything the player owns: every dealership's own book equity, the pooled Group Treasury, and both group-level verticals' retained cash (plus the Captive Lender's outstanding loan portfolio, a real receivable). */
+export function computeGroupNetWorth(state: GameState): number {
+  const dealershipsEquity = Object.values(state.dealerships).reduce((sum, d) => sum + (totalAssets(d) - totalLiabilities(d)), 0);
+  return dealershipsEquity
+    + state.groupTreasury
+    + state.captiveLender.cash + state.captiveLender.portfolioPrincipal
+    + state.partsWarehouse.cash
+    + state.manufacturerCo.cash;
+}
+
 export function netWorthStanding(netWorth: number): NetWorthStanding {
   let idx = 0;
   for (let i = 0; i < NET_WORTH_TIERS.length; i++) {

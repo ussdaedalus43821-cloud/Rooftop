@@ -1,6 +1,7 @@
 import { Rng } from "./rng.js";
 import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
+import { newManufacturerCo } from "./engine/manufacturerCo.js";
 import {
   CURTAILMENT_FRACTION,
   CURTAILMENT_GRACE_DAYS,
@@ -163,6 +164,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
     auctionLots: [],
     auctionLotsDay: -1,
     modelStats: {},
+    isHouseBrand: false,
   };
 }
 
@@ -211,6 +213,7 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     groupTreasury: 0,
     captiveLender: newCaptiveLender(),
     partsWarehouse: newPartsWarehouse(),
+    manufacturerCo: newManufacturerCo(),
   };
 }
 
