@@ -64,6 +64,19 @@ export interface Vehicle {
   source: "allocation" | "auction" | "tradein";
 }
 
+export interface ModelSalesStat {
+  key: string; // `${condition}|${name}|${trim}`
+  name: string;
+  trim: string;
+  condition: VehicleCondition;
+  unitsSoldThisMonth: number;
+  unitsSoldLastMonth: number;
+  unitsSoldAllTime: number;
+  grossThisMonth: number;
+  grossAllTime: number;
+  daysOnLotSum: number; // divide by unitsSoldAllTime for the average days-to-sell
+}
+
 export interface AuctionLot {
   id: string;
   model: VehicleModel;
@@ -286,10 +299,11 @@ export interface Dealership {
   serviceCustomerBase: number; // count of past buyers eligible for retention
   isUsedOnly: boolean; // true after franchise termination
   failure: FailureKind;
-  autoPilot: { sales: boolean; fi: boolean; auction: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input
+  autoPilot: { sales: boolean; fi: boolean; auction: boolean; allocation: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input
   auctionAutoBidDiscountPct: number; // 0-40, how far below market value the auction auto-pilot is willing to bid
   auctionLots: AuctionLot[]; // today's wholesale auction lots, cached here so auto-pilot and the manual UI see/consume the same batch
   auctionLotsDay: number; // the game day auctionLots was generated for
+  modelStats: Record<string, ModelSalesStat>; // per name+trim+condition sales performance, keyed by ModelSalesStat.key
 }
 
 export interface GameState {

@@ -83,6 +83,41 @@ export function orderAllocationUnit(d: Dealership, model: VehicleModel, day: num
   return v;
 }
 
+const AUTO_ORDER_MAX_ON_LOT_PER_MODEL = 4; // don't keep restocking a model that already isn't moving
+
+/**
+ * Picks the new model most worth ordering right now: strongest recent sales
+ * demand first (last month's units, nudged by this month's pace so far),
+ * falling back to catalog desirability for a model with no sales history
+ * yet. Skips any model already sitting several-deep unsold on the lot —
+ * no point restocking what isn't selling.
+ */
+function pickBestModelToOrder(d: Dealership): VehicleModel | null {
+  const candidates = allocationCatalog(d)
+    .map((model) => {
+      const onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.model.name === model.name && v.model.trim === model.trim).length;
+      const stat = d.modelStats[`new|${model.name}|${model.trim}`];
+      const demand = stat ? stat.unitsSoldLastMonth + stat.unitsSoldThisMonth * 0.5 : model.desirability * 2;
+      return { model, demand, onLot };
+    })
+    .filter((c) => c.onLot < AUTO_ORDER_MAX_ON_LOT_PER_MODEL);
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.demand - a.demand);
+  return candidates[0].model;
+}
+
+/**
+ * Orders a steady one-a-day trickle of the best-selling model, rather than
+ * either nothing (forgetting to restock) or the whole month's allocation up
+ * front (flooding recon with cars nobody's actually asking for).
+ */
+export function autoOrderAllocation(d: Dealership, day: number, rng: Rng): Vehicle | null {
+  if (d.isUsedOnly || allocationRemainingThisMonth(d) <= 0) return null;
+  const model = pickBestModelToOrder(d);
+  if (!model) return null;
+  return orderAllocationUnit(d, model, day, rng);
+}
+
 export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLot[] {
   const lots: AuctionLot[] = [];
   for (let i = 0; i < count; i++) {

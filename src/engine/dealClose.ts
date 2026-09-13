@@ -49,6 +49,7 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
   if (vehicle.condition === "new") d.currentMonth.unitsSoldNew += 1;
   else d.currentMonth.unitsSoldUsed += 1;
   d.manufacturer.quotaAttainedThisMonth += vehicle.condition === "new" ? 1 : 0;
+  recordModelSale(d, vehicle, grossProfit);
 
   const dealSatisfaction = clamp01(0.5 + deal.lastCustomerMood * 0.25);
   d.manufacturer.csi = clamp(d.manufacturer.csi * 0.94 + dealSatisfaction * 100 * 0.06, 0, 100);
@@ -56,6 +57,32 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
   d.serviceCustomerBase += 1;
 
   deal.stage = "closed";
+}
+
+/** Feeds the Inventory tab's "what's selling" intel, keyed by model+trim+condition so new and used performance never mix. */
+function recordModelSale(d: Dealership, vehicle: Vehicle, grossProfit: number): void {
+  const key = `${vehicle.condition}|${vehicle.model.name}|${vehicle.model.trim}`;
+  let stat = d.modelStats[key];
+  if (!stat) {
+    stat = {
+      key,
+      name: vehicle.model.name,
+      trim: vehicle.model.trim,
+      condition: vehicle.condition,
+      unitsSoldThisMonth: 0,
+      unitsSoldLastMonth: 0,
+      unitsSoldAllTime: 0,
+      grossThisMonth: 0,
+      grossAllTime: 0,
+      daysOnLotSum: 0,
+    };
+    d.modelStats[key] = stat;
+  }
+  stat.unitsSoldThisMonth += 1;
+  stat.unitsSoldAllTime += 1;
+  stat.grossThisMonth += grossProfit;
+  stat.grossAllTime += grossProfit;
+  stat.daysOnLotSum += vehicle.daysInInventory;
 }
 
 function clamp(v: number, min: number, max: number): number {

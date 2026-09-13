@@ -5,7 +5,7 @@ import { tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
 import { autoRunFi } from "./fi.js";
-import { autoBidAuctionLots } from "./acquisition.js";
+import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
 import {
@@ -48,6 +48,13 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
       if (result.vehicle) {
         pushToast(state, `Auto-bought ${result.vehicle.model.name} ${result.vehicle.model.trim} at auction for $${Math.round(result.finalPrice).toLocaleString()}.`, "good");
       }
+    }
+  }
+
+  if (d.autoPilot.allocation) {
+    const ordered = autoOrderAllocation(d, state.day, rng);
+    if (ordered) {
+      pushToast(state, `Auto-ordered a ${ordered.model.name} ${ordered.model.trim} from the factory.`, "good");
     }
   }
 
@@ -119,6 +126,12 @@ function finalizeMonth(state: GameState, d: Dealership): void {
 
   monthlyManufacturerCycle(d, state.day);
   monthlyServiceCycle(d);
+
+  for (const stat of Object.values(d.modelStats)) {
+    stat.unitsSoldLastMonth = stat.unitsSoldThisMonth;
+    stat.unitsSoldThisMonth = 0;
+    stat.grossThisMonth = 0;
+  }
 
   d.currentMonth = {
     monthLabel: monthLabel(state.day),

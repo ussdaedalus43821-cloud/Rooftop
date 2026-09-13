@@ -1,5 +1,5 @@
 import type { TabModule } from "./types.js";
-import type { ReconStage, Vehicle } from "../types.js";
+import type { Dealership, ReconStage, Vehicle, VehicleCondition } from "../types.js";
 import { money } from "./format.js";
 import { escapeHtml } from "./app.js";
 import {
@@ -13,6 +13,46 @@ import {
 import { getCurtailmentDue, payOffHeldUnit, payVehicleCurtailmentInFull } from "../engine/inventory.js";
 import { pushToast } from "../engine/engine.js";
 import { getFranchiseOption } from "../constants.js";
+
+interface PerfRow {
+  key: string;
+  name: string;
+  trim: string;
+  condition: VehicleCondition;
+  thisMonth: number;
+  lastMonth: number;
+  grossThisMonth: number;
+  avgDays: number;
+  onLot: number;
+}
+
+/** Merges live catalog models (even ones with zero sales yet) with historical modelStats so "what's not moving" shows up, not just what sold. */
+function buildPerformanceRows(d: Dealership): PerfRow[] {
+  const rows = new Map<string, PerfRow>();
+  for (const m of allocationCatalog(d)) {
+    const key = `new|${m.name}|${m.trim}`;
+    rows.set(key, { key, name: m.name, trim: m.trim, condition: "new", thisMonth: 0, lastMonth: 0, grossThisMonth: 0, avgDays: 0, onLot: 0 });
+  }
+  for (const stat of Object.values(d.modelStats)) {
+    rows.set(stat.key, {
+      key: stat.key,
+      name: stat.name,
+      trim: stat.trim,
+      condition: stat.condition,
+      thisMonth: stat.unitsSoldThisMonth,
+      lastMonth: stat.unitsSoldLastMonth,
+      grossThisMonth: stat.grossThisMonth,
+      avgDays: stat.unitsSoldAllTime > 0 ? Math.round(stat.daysOnLotSum / stat.unitsSoldAllTime) : 0,
+      onLot: 0,
+    });
+  }
+  for (const row of rows.values()) {
+    row.onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.condition === row.condition && v.model.name === row.name && v.model.trim === row.trim).length;
+  }
+  return [...rows.values()]
+    .filter((r) => r.onLot > 0 || r.thisMonth > 0 || r.lastMonth > 0)
+    .sort((a, b) => b.thisMonth - a.thisMonth || b.lastMonth - a.lastMonth || b.onLot - a.onLot);
+}
 
 const STAGE_LABELS: Record<ReconStage, string> = {
   acquired: "Acquired",
@@ -79,6 +119,12 @@ export const inventoryTab: TabModule = {
     const allocationPanel = d.isUsedOnly ? `<div class="card"><h3>Manufacturer Allocation</h3><p class="text-bad">${hasNoFranchise ? "No manufacturer relationship — this is a used-only, direct-to-consumer store. All inventory comes from auction and trade-ins." : "Franchise terminated — no new-vehicle allocation available. This store is used-only."}</p></div>` : `
       <div class="card">
         <h3>Manufacturer Allocation — ${remaining}/${d.manufacturer.allocationCapMonthly} remaining this month</h3>
+        <div class="btn-row" style="margin-bottom:10px;">
+          <button class="btn ${d.autoPilot.allocation ? "btn-good" : ""}" data-action="inventory:toggleAllocationAutoPilot">
+            Auto-Pilot: ${d.autoPilot.allocation ? "ON — restocking your best sellers" : "OFF — you order yourself"}
+          </button>
+        </div>
+        <p class="text-faint" style="font-size:11.5px;margin:-4px 0 10px;">When on, orders one unit a day of whichever model is selling best (last month's pace, new models get a shot based on desirability), skipping anything already sitting 4+ deep unsold.</p>
         <div class="table-wrap"><table>
           <thead><tr><th>Model</th><th>Trim</th><th class="num">Invoice</th><th class="num">MSRP</th><th></th></tr></thead>
           <tbody>
@@ -89,6 +135,33 @@ export const inventoryTab: TabModule = {
             </tr>`).join("")}
           </tbody>
         </table></div>
+      </div>`;
+
+    const perfRows = buildPerformanceRows(d);
+    const performancePanel = `
+      <div class="card">
+        <h3>Model Performance</h3>
+        <p class="text-faint" style="font-size:11.5px;">What's actually moving off the lot, by model and trim — use it to decide what to order (or trust auto-pilot to read it for you).</p>
+        ${perfRows.length === 0 ? '<div class="list-empty">No sales history yet.</div>' : `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Model</th><th>Cond</th><th class="num">Sold This Mo</th><th class="num">Sold Last Mo</th><th class="num">Gross This Mo</th><th class="num">Avg Days to Sell</th><th class="num">On Lot Now</th><th></th></tr></thead>
+          <tbody>
+            ${perfRows.map((r) => {
+              const slowMover = r.onLot >= 3 && r.thisMonth === 0 && r.lastMonth === 0;
+              const hot = r.thisMonth >= 3;
+              return `<tr>
+                <td>${escapeHtml(r.name)} ${escapeHtml(r.trim)}</td>
+                <td>${r.condition === "new" ? "New" : "Used"}</td>
+                <td class="num">${r.thisMonth}</td>
+                <td class="num">${r.lastMonth}</td>
+                <td class="num">${money(r.grossThisMonth)}</td>
+                <td class="num">${r.avgDays > 0 ? `${r.avgDays}d` : "—"}</td>
+                <td class="num">${r.onLot}</td>
+                <td>${hot ? '<span class="badge badge-good">Hot</span>' : slowMover ? '<span class="badge badge-bad">Slow Mover</span>' : ""}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table></div>`}
       </div>`;
 
     const lots = auctionLotsForToday(d, ctx.state.day, ctx.rng);
@@ -141,7 +214,7 @@ export const inventoryTab: TabModule = {
         <p class="text-faint" style="font-size:11.5px;margin-top:8px;">Holding payoffs keeps sale proceeds in cash but leaves that unit's floor-plan balance outstanding — a live sold-out-of-trust exposure that raises audit risk the longer it's held.</p>
       </div>`;
 
-    return `${kanban}<div class="section-title">Acquire Inventory</div><div class="grid grid-cols-2">${allocationPanel}${auctionPanel}</div><div class="section-title">Floor-Plan Management</div>${floorPlanPanel}`;
+    return `${kanban}${performancePanel}<div class="section-title">Acquire Inventory</div><div class="grid grid-cols-2">${allocationPanel}${auctionPanel}</div><div class="section-title">Floor-Plan Management</div>${floorPlanPanel}`;
   },
   onAction(ctx, action, target) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
@@ -171,6 +244,10 @@ export const inventoryTab: TabModule = {
     }
     if (action === "inventory:toggleAuctionAutoPilot") {
       d.autoPilot.auction = !d.autoPilot.auction;
+      return true;
+    }
+    if (action === "inventory:toggleAllocationAutoPilot") {
+      d.autoPilot.allocation = !d.autoPilot.allocation;
       return true;
     }
     if (action === "inventory:payCurtailment") {
