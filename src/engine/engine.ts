@@ -75,15 +75,17 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
     pushToast(state, `${d.name}: cleared $${Math.round(curtailmentPaid).toLocaleString()} in floor-plan curtailment before it became a problem.`, "good");
   }
 
-  if (d.autoPilot.auction) {
-    const won = autoBidAuctionLots(d, state.day, rng);
-    for (const result of won) {
-      if (result.vehicle) {
-        pushToast(state, `Auto-bought ${result.vehicle.model.name} ${result.vehicle.model.trim} at auction for $${Math.round(result.finalPrice).toLocaleString()}.`, "good");
-      }
-    }
-  }
-
+  // Allocation runs before auction — protecting the store's own franchise
+  // quota comes first. Auction used to go first and, since it can claim up
+  // to 5 units/day of finite lot space against a lot that's usually near
+  // capacity, it was quietly crowding out new-vehicle allocation entirely
+  // on many days. That's academic for a high-quota mainstream brand but
+  // existential for a low-quota luxury one: a few months of starved
+  // allocation is enough to crater quota attainment and trigger permanent
+  // franchise termination, even on a store that looks busy because it's
+  // still flipping plenty of off-brand used auction inventory. A rational
+  // dealer protects the manufacturer relationship first and treats auction
+  // as supplemental, not the other way around.
   if (d.autoPilot.allocation) {
     const houseBrandModels = d.isHouseBrand ? liveHouseBrandCatalog(state.manufacturerCo) : undefined;
     const ordered = autoOrderAllocation(d, state.day, rng, houseBrandModels);
@@ -98,6 +100,15 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
         pushToast(state, `Auto-ordered a ${ordered[0].model.name} ${ordered[0].model.trim} from the factory.`, "good");
       } else {
         pushToast(state, `Auto-ordered ${ordered.length} units from the factory to keep pace with allocation.`, "good");
+      }
+    }
+  }
+
+  if (d.autoPilot.auction) {
+    const won = autoBidAuctionLots(d, state.day, rng);
+    for (const result of won) {
+      if (result.vehicle) {
+        pushToast(state, `Auto-bought ${result.vehicle.model.name} ${result.vehicle.model.trim} at auction for $${Math.round(result.finalPrice).toLocaleString()}.`, "good");
       }
     }
   }
@@ -232,7 +243,7 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
 
-  const careerEvents = applyStaffCareerCycle(d, rng);
+  const careerEvents = applyStaffCareerCycle(state, d, rng);
   for (const event of careerEvents) {
     if (event.kind === "retired") {
       pushToast(state, `${d.name}: ${event.member.name} retired after ${Math.floor(event.member.experienceDays / 365)} years with you.`, "info");

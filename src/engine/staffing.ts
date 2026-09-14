@@ -1,8 +1,8 @@
-import type { Dealership, SalesRole, StaffMember } from "../types.js";
+import type { Dealership, GameState, SalesRole, StaffMember } from "../types.js";
 import { STAFF_FIRST_NAMES, STAFF_LAST_NAMES } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
-import { postCashExpense } from "./financials.js";
+import { postCashExpense, injectCapital } from "./financials.js";
 
 const HIRE_COST: Record<SalesRole, number> = {
   salesperson: 1500,
@@ -325,9 +325,47 @@ export interface CareerEvent {
   kind: "retired" | "poached" | "promoted" | "backfilled";
 }
 
+/**
+ * Covers an essential hire's cost from the store's own cash, and — only if
+ * that alone can't cover it — tops up the gap from the pooled Group
+ * Treasury, the same pooled-capital principle behind autoRescueDealership.
+ * Without this, a store whose cash sits (as it normally does under active
+ * treasury sweeping) right at its own auto-sweep cushion can never clear
+ * the old "stay above the cushion" guard for a few-thousand-dollar hire,
+ * even while the group sits on millions: a real ownership group doesn't
+ * let a store go permanently unstaffed over pocket change. Returns false
+ * only if neither the store nor the treasury can cover it.
+ */
+function affordEssentialHire(state: GameState, d: Dealership, cost: number): boolean {
+  if (d.ledger.cash >= cost) return true;
+  if (!d.autoPilot.treasury) return false;
+  const shortfall = cost - d.ledger.cash;
+  if (state.groupTreasury < shortfall) return false;
+  state.groupTreasury -= shortfall;
+  injectCapital(d, shortfall);
+  return true;
+}
+
 /** Run once per in-game month, after net income for the month is finalized. */
-export function applyStaffCareerCycle(d: Dealership, rng: Rng): CareerEvent[] {
+export function applyStaffCareerCycle(state: GameState, d: Dealership, rng: Rng): CareerEvent[] {
   const events: CareerEvent[] = [];
+
+  // A store that's lost every last employee — the final retirement or
+  // poaching with nobody left to promote or backfill — has no way back on
+  // its own: the ordinary GM backfill only runs when a GM is already
+  // present to do the hiring. Left unfixed, enough decades of bad luck can
+  // permanently brick a store — zero revenue forever, still paying fixed
+  // costs, propped up indefinitely by treasury rescue with no path back.
+  // A real ownership group facing a fully empty store brings in a manager
+  // rather than leaving it derelict; this is that last-resort hire.
+  if (d.staff.length === 0) {
+    if (affordEssentialHire(state, d, hireCost("gm"))) {
+      const hired = hireStaff(d, "gm", rng);
+      if (hired) events.push({ member: hired, kind: "backfilled" });
+    }
+    return events;
+  }
+
   const profitable = d.currentMonth.netIncome > 0;
   for (const s of d.staff) {
     s.morale += profitable ? MORALE_PROFIT_LIFT : -MORALE_LOSS_DRAG;
@@ -376,13 +414,33 @@ export function applyStaffCareerCycle(d: Dealership, rng: Rng): CareerEvent[] {
   }
 
   // A GM keeps the floor staffed — auto-backfills one departure per vacated
-  // non-GM role if cash allows, without draining the store's own reserve.
-  // If the GM itself just left, nobody's left to do this hiring.
+  // non-GM role, funding it from the store's own cash or, if that alone
+  // falls short, a top-up from the pooled Group Treasury. If the GM itself
+  // just left, nobody's left to do this hiring.
   if (d.staff.some((s) => s.role === "gm")) {
     for (const role of departingRoles) {
-      if (d.ledger.cash - hireCost(role) < d.autoSweepThreshold) continue;
+      if (!affordEssentialHire(state, d, hireCost(role))) continue;
       const hired = hireStaff(d, role, rng);
       if (hired) events.push({ member: hired, kind: "backfilled" });
+    }
+  }
+
+  // A GM presides over the floor, but without at least one salesperson and
+  // one F&I manager the store can't write a single deal — the backfill
+  // above only reacts to a departure inside the same monthly cycle, so a
+  // store that drifted down to just its GM (retirements/poaching spread
+  // across separate months, or the zero-staff emergency hire) never
+  // rebuilds on its own and sits as a revenue-dead zombie indefinitely. A
+  // real GM restaffs the floor rather than running it solo forever; this
+  // rebuilds one missing baseline role per month, same funding rule as
+  // ordinary backfill.
+  if (d.staff.some((s) => s.role === "gm")) {
+    for (const role of ["salesperson", "fi_manager"] as SalesRole[]) {
+      if (d.staff.some((s) => s.role === role)) continue;
+      if (!affordEssentialHire(state, d, hireCost(role))) continue;
+      const hired = hireStaff(d, role, rng);
+      if (hired) events.push({ member: hired, kind: "backfilled" });
+      break;
     }
   }
 
