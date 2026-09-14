@@ -213,9 +213,10 @@ function renderMilestoneModal(): string {
       <p>Sustained strong performance over ${c.consecutiveStrongMonths}+ months has gotten the owner's attention. You've accrued <strong>${money(c.bonusPoolAccrued)}</strong> in bonus/profit-share. What do you want to do?</p>
       <div class="btn-row">
         <button class="btn btn-primary" data-action="milestone:choose" data-choice="equity">Buy an equity stake in this store</button>
-        <button class="btn btn-good" data-action="milestone:choose" data-choice="new_rooftop">Take ownership of a new rooftop</button>
+        <button class="btn btn-good" data-action="milestone:choose" data-choice="new_rooftop">Quit and found your own rooftop</button>
         <button class="btn" data-action="milestone:choose" data-choice="decline">Not yet</button>
       </div>
+      <p class="text-faint" style="font-size:12px;margin-top:8px;">Founding your own rooftop means walking away for good — you never held equity here, so this store isn't yours to bring with you. It stays behind, and your bonus pool becomes the seed capital for a brand-new store you own outright.</p>
     </div>
   </div>`;
 }

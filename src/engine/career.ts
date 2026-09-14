@@ -70,6 +70,17 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
     const groupName = `${rng.pick(["Summit", "Harbor", "Crossroads", "Union", "Cascade"])} ${option.brand}`;
     const newDealership = createDealership(rng, newId, groupName, d.manufacturer.franchiseKey, day, capital);
     state.dealerships[newId] = newDealership;
+
+    // This isn't buying a second location — it's quitting a salaried GM
+    // job to start your own. You never held equity in the store you were
+    // managing, so it doesn't come with you: it stays behind (no payout —
+    // you were never its owner) and your only store from here on is the
+    // one you just founded. Any later multi-store growth comes from
+    // actually buying/building rooftops with your own money, not a leftover
+    // freebie from this milestone.
+    delete state.dealerships[d.id];
+    state.activeDealershipId = newId;
+
     state.career.role = "owner_operator";
     state.career.equityPct = 1;
     state.career.bonusPoolAccrued = 0;
