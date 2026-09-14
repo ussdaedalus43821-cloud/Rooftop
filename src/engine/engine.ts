@@ -9,7 +9,7 @@ import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
 import { autoRunFi, MAX_FI_DEALS_PER_MANAGER_PER_DAY } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
-import { monthlyCareerCycle } from "./career.js";
+import { monthlyCareerCycle, payOwnerDistribution } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
@@ -228,6 +228,11 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   // this toast is the only place these payouts are ever visible to the player.
   for (const award of incentives.awards) {
     pushToast(state, `${d.name} — ${award.label}: ${award.name} earned $${award.amount.toLocaleString()}.`, "good");
+  }
+
+  const ownerDistribution = payOwnerDistribution(state, d);
+  if (ownerDistribution > 0) {
+    pushToast(state, `${d.name}: paid you a $${Math.round(ownerDistribution).toLocaleString()} owner distribution on your ${Math.round(state.career.equityPct * 100)}% stake.`, "good");
   }
 
   d.monthlyHistory.push(d.currentMonth);

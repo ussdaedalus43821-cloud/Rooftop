@@ -266,6 +266,10 @@ export interface MonthlyFinancials {
 export interface CareerState {
   role: "gm" | "partial_owner" | "owner_operator";
   equityPct: number;
+  /** The dealership this stake applies to — set on the first equity buy-in and reused for every later top-up, independent of whichever store the player happens to be viewing. */
+  equityDealershipId: string | null;
+  /** Running total of owner distributions paid out for a partial stake — cosmetic/history only, doesn't feed any calculation. */
+  lifetimeDistributions: number;
   bonusPoolAccrued: number;
   consecutiveStrongMonths: number;
   monthsEmployed: number;

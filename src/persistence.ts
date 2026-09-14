@@ -94,6 +94,14 @@ function migrateState(state: GameState): GameState {
   if (!state.manufacturerAcquisitionTargets) state.manufacturerAcquisitionTargets = [];
   if (state.manufacturerAcquisitionTargetsMonth === undefined) state.manufacturerAcquisitionTargetsMonth = -1;
   if (state.takeoverThreat === undefined) state.takeoverThreat = null;
+  // Equity used to be a one-time, un-topped-up stake with no store it was
+  // actually tied to — an existing partial owner's save has no record of
+  // which dealership that was. Best guess: whichever store they had open
+  // when they saved, since that's usually still their original one.
+  if (state.career.equityDealershipId === undefined) {
+    state.career.equityDealershipId = state.career.role === "partial_owner" ? state.activeDealershipId : null;
+  }
+  if (state.career.lifetimeDistributions === undefined) state.career.lifetimeDistributions = 0;
   return state;
 }
 

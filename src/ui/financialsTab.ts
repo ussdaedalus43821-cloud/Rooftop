@@ -95,13 +95,17 @@ export const financialsTab: TabModule = {
         </table></div>
       </div>`;
 
+    const equityStoreName = career.role === "partial_owner" && career.equityDealershipId
+      ? ctx.state.dealerships[career.equityDealershipId]?.name
+      : undefined;
     const careerCard = `
       <div class="card">
         <h3>Career</h3>
-        <div class="grid grid-cols-3">
-          <div><div class="text-faint" style="font-size:11px;">Role</div><div class="mono" style="text-transform:capitalize;">${career.role.replace("_", " ")}${career.role !== "gm" ? ` (${Math.round(career.equityPct * 100)}%)` : ""}</div></div>
+        <div class="grid grid-cols-4">
+          <div><div class="text-faint" style="font-size:11px;">Role</div><div class="mono" style="text-transform:capitalize;">${career.role.replace("_", " ")}${career.role !== "gm" ? ` (${Math.round(career.equityPct * 100)}%)` : ""}${equityStoreName ? ` in ${equityStoreName}` : ""}</div></div>
           <div><div class="text-faint" style="font-size:11px;">Bonus Pool Accrued</div><div class="mono text-good">${money(career.bonusPoolAccrued)}</div></div>
           <div><div class="text-faint" style="font-size:11px;">Consecutive Strong Months</div><div class="mono">${career.consecutiveStrongMonths}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Lifetime Owner Distributions</div><div class="mono text-good">${money(career.lifetimeDistributions)}</div></div>
         </div>
       </div>`;
 

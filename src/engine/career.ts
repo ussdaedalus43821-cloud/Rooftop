@@ -2,7 +2,7 @@ import type { Dealership, GameState, MonthlyFinancials } from "../types.js";
 import { MONTHS_FOR_OWNERSHIP_OFFER, STRONG_MONTH_SCORE_THRESHOLD, getFranchiseOption } from "../constants.js";
 import { createDealership, nextId } from "../state.js";
 import { Rng } from "../rng.js";
-import { totalAssets, totalLiabilities } from "./financials.js";
+import { distributeToOwner, totalAssets, totalLiabilities } from "./financials.js";
 
 export function monthPerformanceScore(d: Dealership, month: MonthlyFinancials): number {
   const netMargin = month.netIncome / 50000; // normalize against a healthy month
@@ -13,39 +13,79 @@ export function monthPerformanceScore(d: Dealership, month: MonthlyFinancials): 
 }
 
 export function monthlyCareerCycle(state: GameState, day: number): void {
-  const d = state.dealerships[state.activeDealershipId];
+  const c = state.career;
+
+  // A full 100% owner already bought out everything there was to buy —
+  // nothing left to offer, no bonus pool worth accruing toward it.
+  if (c.role === "owner_operator") return;
+
+  // Pre-milestone, the player's only store IS whatever's active — that's
+  // guaranteed, since expansion is locked behind having already become an
+  // owner. Post-equity, though, the player may have gone on to build or
+  // buy other stores and be looking at one of those instead: performance
+  // has to keep tracking the specific store the stake is actually in, not
+  // whichever tab happens to be open.
+  const dealershipId = c.role === "gm" ? state.activeDealershipId : c.equityDealershipId;
+  if (!dealershipId) return;
+  const d = state.dealerships[dealershipId];
+  if (!d) return; // the equity store is gone (sold, or lost to a takeover) — nothing left to track
   const lastMonth = d.monthlyHistory[d.monthlyHistory.length - 1];
   if (!lastMonth) return;
 
   const score = monthPerformanceScore(d, lastMonth);
-  state.career.performanceHistory.push(score);
-  state.career.monthsEmployed += 1;
+  c.performanceHistory.push(score);
+  c.monthsEmployed += 1;
 
   if (score >= STRONG_MONTH_SCORE_THRESHOLD) {
-    state.career.consecutiveStrongMonths += 1;
+    c.consecutiveStrongMonths += 1;
     if (lastMonth.netIncome > 0) {
-      state.career.bonusPoolAccrued += lastMonth.netIncome * 0.06;
+      c.bonusPoolAccrued += lastMonth.netIncome * 0.06;
     }
   } else {
-    state.career.consecutiveStrongMonths = Math.max(0, state.career.consecutiveStrongMonths - 1);
+    c.consecutiveStrongMonths = Math.max(0, c.consecutiveStrongMonths - 1);
   }
 
-  if (
-    state.career.role === "gm" &&
-    !state.career.milestoneOfferPending &&
-    !state.career.milestoneResolved &&
-    state.career.consecutiveStrongMonths >= MONTHS_FOR_OWNERSHIP_OFFER
-  ) {
-    state.career.milestoneOfferPending = true;
-    state.career.milestoneOfferDay = day;
+  // The very first offer is the three-way fork (equity / found your own /
+  // decline) and only fires once. Every offer after that — once already a
+  // partial owner, still short of 100% — is a repeatable "buy more" ask,
+  // not gated by milestoneResolved, so a sustained run of strong months
+  // keeps opening the door to climb further toward full ownership.
+  const eligible =
+    !c.milestoneOfferPending &&
+    c.consecutiveStrongMonths >= MONTHS_FOR_OWNERSHIP_OFFER &&
+    (c.role === "gm" ? !c.milestoneResolved : c.equityPct < 1);
+
+  if (eligible) {
+    c.milestoneOfferPending = true;
+    c.milestoneOfferDay = day;
     state.speed = 0; // pause so a big career decision never gets buried by the clock running underneath it
   }
+}
+
+/**
+ * A minority stake means real ownership, not a label: each month, whatever
+ * the store didn't pay out in expenses/tax still mostly belongs to the
+ * business itself (an outside majority owner, in the fiction) — except the
+ * player's own slice, which gets paid out to them in cash, same as a real
+ * minority shareholder's dividend. Without this, "14% owner" would just be
+ * a number that never put a dollar in the player's pocket.
+ */
+export function payOwnerDistribution(state: GameState, d: Dealership): number {
+  const c = state.career;
+  if (c.role !== "partial_owner" || c.equityDealershipId !== d.id) return 0;
+  const netIncome = d.currentMonth.netIncome;
+  if (netIncome <= 0) return 0;
+  const amount = Math.min(netIncome * c.equityPct, d.ledger.cash);
+  if (amount <= 0) return 0;
+  distributeToOwner(d, amount);
+  state.groupTreasury += amount;
+  c.lifetimeDistributions += amount;
+  return amount;
 }
 
 export type MilestoneChoice = "equity" | "new_rooftop" | "decline";
 
 export function resolveMilestone(state: GameState, choice: MilestoneChoice, day: number, rng: Rng, newRooftopName?: string): void {
-  const d = state.dealerships[state.activeDealershipId];
   state.career.milestoneOfferPending = false;
 
   if (choice === "decline") {
@@ -56,14 +96,25 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
   state.career.milestoneResolved = true;
 
   if (choice === "equity") {
+    // The first buy-in and every later top-up target the same store — set
+    // once here and reused from then on, regardless of which store the
+    // player is currently viewing.
+    const targetId = state.career.equityDealershipId ?? state.activeDealershipId;
+    const d = state.dealerships[targetId];
+    if (!d) return; // the store this stake was in is gone — nothing left to buy into
     const netWorth = Math.max(1, totalAssets(d) - totalLiabilities(d));
-    const pct = clamp(state.career.bonusPoolAccrued / netWorth, 0.02, 0.35);
-    state.career.role = "partial_owner";
-    state.career.equityPct = pct;
+    const additionalPct = clamp(state.career.bonusPoolAccrued / netWorth, 0.02, 0.35);
+    const newPct = Math.min(1, state.career.equityPct + additionalPct);
+    state.career.equityDealershipId = d.id;
+    state.career.equityPct = newPct;
+    // Bought all the way out — you're not a minority partner anymore, you
+    // own the place outright, same as founding one from scratch would.
+    state.career.role = newPct >= 1 ? "owner_operator" : "partial_owner";
     // The bonus pool is the GM's own accrued capital, external to store
-    // cash — buying in converts it to an equity percentage, not a deposit.
+    // cash — buying in converts it to equity, not a deposit.
     state.career.bonusPoolAccrued = 0;
   } else {
+    const d = state.dealerships[state.activeDealershipId];
     const option = getFranchiseOption(d.manufacturer.franchiseKey);
     const capital = Math.max(option.startingCash * 0.6, state.career.bonusPoolAccrued * 3);
     const newId = nextId("dlr");

@@ -180,6 +180,8 @@ function newCareer(): CareerState {
   return {
     role: "gm",
     equityPct: 0,
+    equityDealershipId: null,
+    lifetimeDistributions: 0,
     bonusPoolAccrued: 0,
     consecutiveStrongMonths: 0,
     monthsEmployed: 0,

@@ -3,6 +3,7 @@ import type { AppCtx, TabModule } from "./types.js";
 import { Rng } from "../rng.js";
 import { formatDate } from "../engine/clock.js";
 import { totalAssets, totalLiabilities } from "../engine/financials.js";
+import { pushToast } from "../engine/engine.js";
 import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
 import { createNewGame } from "../state.js";
@@ -207,6 +208,25 @@ function roleLabel(state: GameState): string {
 function renderMilestoneModal(): string {
   if (!ctx || !ctx.state.career.milestoneOfferPending) return "";
   const c = ctx.state.career;
+
+  // Already a partial owner: every offer after the first one is a
+  // repeatable "buy more" ask, not the original three-way fork.
+  if (c.role === "partial_owner") {
+    const d = c.equityDealershipId ? ctx.state.dealerships[c.equityDealershipId] : undefined;
+    if (!d) return "";
+    return `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <h2>Another Opportunity</h2>
+        <p>Sustained strong performance over ${c.consecutiveStrongMonths}+ months at ${escapeHtml(d.name)} has the majority owner willing to sell you more. You currently hold <strong>${Math.round(c.equityPct * 100)}%</strong> and have accrued <strong>${money(c.bonusPoolAccrued)}</strong> toward buying in further. Keep climbing toward full ownership?</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="milestone:choose" data-choice="equity">Buy more equity</button>
+          <button class="btn" data-action="milestone:choose" data-choice="decline">Not yet</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
   const d = ctx.state.dealerships[ctx.state.activeDealershipId];
   const brand = getFranchiseOption(d.manufacturer.franchiseKey).brand;
   return `
@@ -219,7 +239,7 @@ function renderMilestoneModal(): string {
         <button class="btn btn-good" data-action="milestone:choose" data-choice="new_rooftop">Quit and found your own rooftop</button>
         <button class="btn" data-action="milestone:choose" data-choice="decline">Not yet</button>
       </div>
-      <p class="text-faint" style="font-size:12px;margin-top:8px;">Founding your own rooftop means walking away for good — you never held equity here, so this store isn't yours to bring with you. It stays behind, and your bonus pool becomes the seed capital for a brand-new store you own outright — under whatever name you give it, not this one's.</p>
+      <p class="text-faint" style="font-size:12px;margin-top:8px;">Founding your own rooftop means walking away for good — you never held equity here, so this store isn't yours to bring with you. It stays behind, and your bonus pool becomes the seed capital for a brand-new store you own outright — under whatever name you give it, not this one's. Buying equity instead keeps you here, with room to buy more later as you keep performing, and a monthly cut of the profit paid out on whatever share you hold.</p>
       <div style="margin-top:8px;">
         <label class="text-faint" style="font-size:12px;display:block;margin-bottom:4px;">Name your new rooftop (only used if you found one):</label>
         <input type="text" placeholder="e.g. ${escapeHtml(brand)} of Meridian" value="${escapeHtml(newRooftopNameDraft)}" data-action="milestone:setName" style="width:100%;" maxlength="60" />
@@ -268,6 +288,14 @@ function onClick(e: MouseEvent): void {
     const choice = target.getAttribute("data-choice") as "equity" | "new_rooftop" | "decline";
     resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng, newRooftopNameDraft.trim() || undefined);
     newRooftopNameDraft = "";
+    if (choice === "equity") {
+      const pct = Math.round(ctx.state.career.equityPct * 100);
+      pushToast(ctx.state, ctx.state.career.role === "owner_operator"
+        ? "Bought out the rest of your stake — you own the place outright now."
+        : `Bought in for ${pct}% total — a cut of profit gets paid out to you each strong month.`, "good");
+    } else if (choice === "new_rooftop") {
+      pushToast(ctx.state, "Founded your own rooftop — you own it outright.", "good");
+    }
     ctx.markDirty();
     render();
     return;
