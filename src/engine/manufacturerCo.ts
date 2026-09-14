@@ -121,8 +121,15 @@ const PINNACLE_MODELS: PinnacleSpec[] = [
   },
 ];
 
-const PINNACLE_MODEL_1_COST = 1_500_000_000; // a flagship halo program — "at least a billion or more, to match today's real world costs"
-const PINNACLE_MODEL_2_COST = 150_000_000_000; // an exceptional, barely-street-legal technology showcase — "100 billion dollars or more"
+// A mature multi-store house-brand group (a dozen-plus dealerships selling
+// nothing but its own lineup) generates cash far faster than a single
+// real-franchise store ever did — these costs held up fine against one
+// store's income, but a full group blew straight through them well before
+// the lineup was even half built. Raised an order of magnitude across the
+// board so the ladder stays a real, ongoing drain on a scaled-up group
+// rather than pocket change a few months in.
+const PINNACLE_MODEL_1_COST = 15_000_000_000; // a flagship halo program
+const PINNACLE_MODEL_2_COST = 1_500_000_000_000; // an exceptional, barely-street-legal technology showcase
 
 export const MAX_MANUFACTURER_MODELS = CLASS_SPECS.length + PINNACLE_MODELS.length;
 const MAX_MODELS = MAX_MANUFACTURER_MODELS;
@@ -133,8 +140,8 @@ const MAX_MODELS = MAX_MANUFACTURER_MODELS;
 // The last two entries gate the pinnacle models, which only ever become
 // reachable after the ordinary six-model lineup is already complete.
 const MODEL_UNLOCK_MONTHS = [0, 24, 48, 72, 96, 120, 180, 240];
-const NEW_MODEL_BASE_COST = 30_000_000;
-const NEW_MODEL_COST_GROWTH = 1.35;
+const NEW_MODEL_BASE_COST = 300_000_000;
+const NEW_MODEL_COST_GROWTH = 1.45;
 
 function starterSpec(category: FranchiseCategory): ClassSpec {
   // An online/direct-to-consumer brand is EV-native from day one; everyone
