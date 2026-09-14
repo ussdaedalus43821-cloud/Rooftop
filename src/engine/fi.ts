@@ -17,6 +17,17 @@ function pickFiManager(d: Dealership): StaffMember | null {
   return [...mgrs].sort((a, b) => a.dealsThisMonth - b.dealsThisMonth)[0];
 }
 
+// A finance appointment is a real, unhurried sit-down — paperwork, product
+// pitches, a credit conversation — not an instant rubber stamp. Nothing
+// used to cap how many one manager could close in a single day, so a lone
+// F&I manager could clear an entire sales floor's worth of deals with zero
+// bottleneck, no matter how many salespeople were feeding them. This caps
+// daily throughput per manager, same spirit as the sales floor's own
+// concurrent-deal limit — a store that outgrows its F&I capacity needs to
+// actually hire a second manager, not just watch one person do the
+// impossible.
+export const MAX_FI_DEALS_PER_MANAGER_PER_DAY = 4;
+
 export function enterFi(d: Dealership, deal: Deal): void {
   if (!deal.fiManagerId) {
     const mgr = pickFiManager(d);

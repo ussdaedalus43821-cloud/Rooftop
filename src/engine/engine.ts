@@ -6,7 +6,7 @@ import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } fro
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
 import { economyDemandMultiplier, economyRateAdj, tickEconomyDaily } from "./economy.js";
 import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
-import { autoRunFi } from "./fi.js";
+import { autoRunFi, MAX_FI_DEALS_PER_MANAGER_PER_DAY } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle } from "./career.js";
@@ -113,13 +113,24 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   }
 
   if (d.autoPilot.fi) {
-    for (const deal of d.deals) {
-      if (deal.stage !== "agreed" && deal.stage !== "fi") continue;
+    // A finance appointment is a real sit-down, not an instant rubber
+    // stamp — capacity is bounded by how many F&I managers are actually on
+    // staff (see MAX_FI_DEALS_PER_MANAGER_PER_DAY), so a backlog can pile
+    // up in "Awaiting F&I" and genuinely pressure the player to hire a
+    // second manager rather than one person clearing an unlimited queue.
+    const fiCapacity = d.staff.filter((s) => s.role === "fi_manager").length * MAX_FI_DEALS_PER_MANAGER_PER_DAY;
+    const pending = d.deals
+      .filter((deal) => deal.stage === "agreed" || deal.stage === "fi")
+      .sort((a, b) => a.createdDay - b.createdDay); // oldest-waiting first, so a backlog never starves any one deal indefinitely
+    let processed = 0;
+    for (const deal of pending) {
+      if (processed >= fiCapacity) break;
       const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
       if (!vehicle) continue;
       autoRunFi(d, deal, vehicle, state.day, rng);
       originateCaptiveLoan(state, deal);
       pushToast(state, `F&I closed ${deal.customer.name}'s deal. Total gross $${Math.round(deal.frontEndGross + deal.fiGross).toLocaleString()}.`, "good");
+      processed++;
     }
   }
 

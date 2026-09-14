@@ -100,14 +100,28 @@ function maxOnLotPerModel(catalogSize: number): number {
   return Math.max(4, Math.round(TARGET_TOTAL_PIPELINE_DEPTH / Math.max(1, catalogSize)));
 }
 
+// Always ordering whichever model has the strongest demand creates a
+// runaway monopoly: a model that pulls even slightly ahead sells through
+// fast enough to never hit its own per-model cap, so it keeps winning the
+// demand ranking and getting ordered again every single day — while every
+// other trim, never restocked, sits at zero forever and never gets a
+// chance to build its own sales history and compete. A real dealer chases
+// what's hot but still keeps a broader mix on the lot; this reserves a
+// real, regular slice of daily orders for whichever live model is
+// currently thinnest on the lot, so nothing gets frozen out permanently.
+const EXPLORATION_ORDER_SHARE = 0.25;
+
 /**
  * Picks the new model most worth ordering right now: strongest recent sales
  * demand first (last month's units, nudged by this month's pace so far),
  * falling back to catalog desirability for a model with no sales history
  * yet. Skips any model already sitting several-deep unsold on the lot —
- * no point restocking what isn't selling.
+ * no point restocking what isn't selling. A regular share of picks instead
+ * go to whichever live model is currently least-stocked (see
+ * EXPLORATION_ORDER_SHARE), so a demand leader can't permanently starve
+ * out the rest of the catalog.
  */
-function pickBestModelToOrder(d: Dealership, houseBrandModels?: VehicleModel[]): VehicleModel | null {
+function pickBestModelToOrder(d: Dealership, rng: Rng, houseBrandModels?: VehicleModel[]): VehicleModel | null {
   const catalog = allocationCatalog(d, houseBrandModels);
   const cap = maxOnLotPerModel(catalog.length);
   const candidates = catalog
@@ -119,6 +133,12 @@ function pickBestModelToOrder(d: Dealership, houseBrandModels?: VehicleModel[]):
     })
     .filter((c) => c.onLot < cap);
   if (candidates.length === 0) return null;
+
+  if (candidates.length > 1 && rng.chance(EXPLORATION_ORDER_SHARE)) {
+    candidates.sort((a, b) => a.onLot - b.onLot);
+    return candidates[0].model;
+  }
+
   candidates.sort((a, b) => b.demand - a.demand);
   return candidates[0].model;
 }
@@ -152,7 +172,7 @@ export function autoOrderAllocation(d: Dealership, day: number, rng: Rng, houseB
   const pace = dailyOrderPace(d, day);
   for (let i = 0; i < pace; i++) {
     if (allocationRemainingThisMonth(d) <= 0) break;
-    const model = pickBestModelToOrder(d, houseBrandModels);
+    const model = pickBestModelToOrder(d, rng, houseBrandModels);
     if (!model) break;
     const v = orderAllocationUnit(d, model, day, rng);
     if (!v) break; // lot full — no point looping further today
