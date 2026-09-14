@@ -76,18 +76,18 @@ export const financialsTab: TabModule = {
           <tbody>
             ${history.length === 0 ? '<tr><td colspan="15" class="list-empty">No completed months yet.</td></tr>' : history.map((m) => `<tr>
               <td>${m.monthLabel}</td>
-              <td class="num">${money(m.frontEndGross)}</td>
-              <td class="num">${money(m.fiGross)}</td>
-              <td class="num">${money(m.serviceGross)}</td>
-              <td class="num">${money(m.partsGross)}</td>
-              <td class="num">${money(m.payrollExpense)}</td>
-              <td class="num">${money(m.floorPlanInterestExpense)}</td>
-              <td class="num">${money(m.overheadExpense)}</td>
-              <td class="num">${money(m.occupancyExpense)}</td>
-              <td class="num">${money(m.propertyTaxExpense)}</td>
-              <td class="num">${money(m.utilitiesExpense)}</td>
-              <td class="num">${money(m.incentiveExpense)}</td>
-              <td class="num">${money(m.incomeTaxExpense)}</td>
+              <td class="num text-good">${money(m.frontEndGross)}</td>
+              <td class="num text-good">${money(m.fiGross)}</td>
+              <td class="num text-good">${money(m.serviceGross)}</td>
+              <td class="num text-good">${money(m.partsGross)}</td>
+              <td class="num text-bad">${money(m.payrollExpense)}</td>
+              <td class="num text-bad">${money(m.floorPlanInterestExpense)}</td>
+              <td class="num text-bad">${money(m.overheadExpense)}</td>
+              <td class="num text-bad">${money(m.occupancyExpense)}</td>
+              <td class="num text-bad">${money(m.propertyTaxExpense)}</td>
+              <td class="num text-bad">${money(m.utilitiesExpense)}</td>
+              <td class="num text-bad">${money(m.incentiveExpense)}</td>
+              <td class="num text-bad">${money(m.incomeTaxExpense)}</td>
               <td class="num ${m.netIncome >= 0 ? "text-good" : "text-bad"}"><strong>${money(m.netIncome)}</strong></td>
               <td class="num">${m.unitsSoldNew + m.unitsSoldUsed}</td>
             </tr>`).join("")}
