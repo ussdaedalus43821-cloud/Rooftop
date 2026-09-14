@@ -116,6 +116,17 @@ export const overviewTab: TabModule = {
           <button class="btn btn-sm" data-action="overview:depositTreasury" ${d.ledger.cash < treasuryAmountDraft ? "disabled" : ""}>Deposit from ${escapeHtml(d.name)}</button>
           <button class="btn btn-sm" data-action="overview:withdrawTreasury" ${ctx.state.groupTreasury < treasuryAmountDraft ? "disabled" : ""}>Withdraw to ${escapeHtml(d.name)}</button>
         </div>
+        <div class="btn-row" style="margin-top:10px;align-items:center;">
+          <button class="btn btn-sm ${d.autoPilot.treasury ? "btn-good" : ""}" data-action="overview:toggleTreasuryAutoPilot">
+            Auto-Sweep ${escapeHtml(d.name)}: ${d.autoPilot.treasury ? "ON" : "OFF"}
+          </button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
+            keep
+            <input type="number" step="10000" min="0" style="width:110px;" value="${d.autoSweepThreshold}" data-action="overview:setSweepThreshold" />
+            for itself
+          </label>
+        </div>
+        <p class="text-faint" style="font-size:11px;margin-top:6px;">When on, every store with this turned on sweeps whatever's above its own threshold into the Treasury automatically at month's end — no more moving cash by hand store by store.</p>
       </div>` : "";
 
     const buildRooftopCard = ctx.state.career.role === "gm" ? "" : (() => {
@@ -451,6 +462,12 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, ok ? `${money(treasuryAmountDraft)} moved out of the Group Treasury.` : "Not enough in the Group Treasury.", ok ? "good" : "warn");
       return true;
     }
+    if (action === "overview:toggleTreasuryAutoPilot") {
+      const target = ctx.state.dealerships[ctx.state.activeDealershipId];
+      target.autoPilot.treasury = !target.autoPilot.treasury;
+      pushToast(ctx.state, target.autoPilot.treasury ? `${target.name} will now auto-sweep surplus cash to the Treasury monthly.` : `${target.name} will no longer auto-sweep.`, "info");
+      return true;
+    }
     if (action === "overview:charterCaptiveLender") {
       const result = charterCaptiveLender(ctx.state, captiveLenderFunding, ctx.state.activeDealershipId);
       pushToast(ctx.state, result.ok ? "Captive Lender chartered — every deal financed group-wide now builds your own loan portfolio." : (result.reason ?? "Couldn't charter a captive lender."), result.ok ? "good" : "warn");
@@ -558,6 +575,11 @@ export const overviewTab: TabModule = {
     }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {
       treasuryAmountDraft = Math.max(0, Number(target.value) || 0);
+      return true;
+    }
+    if (action === "overview:setSweepThreshold" && target instanceof HTMLInputElement) {
+      const active = ctx.state.dealerships[ctx.state.activeDealershipId];
+      active.autoSweepThreshold = Math.max(0, Number(target.value) || 0);
       return true;
     }
     if (action === "overview:buildSetCategory" && target instanceof HTMLSelectElement) {

@@ -301,7 +301,8 @@ export interface Dealership {
   serviceCustomerBase: number; // count of past buyers eligible for retention
   isUsedOnly: boolean; // true after franchise termination
   failure: FailureKind;
-  autoPilot: { sales: boolean; fi: boolean; auction: boolean; allocation: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input
+  autoPilot: { sales: boolean; fi: boolean; auction: boolean; allocation: boolean; treasury: boolean }; // let hired staff work deals end-to-end using their own skill, instead of every round requiring player input; `treasury` instead auto-sweeps surplus cash to the Group Treasury each month
+  autoSweepThreshold: number; // working capital this store keeps for itself when autoPilot.treasury is on — everything above it sweeps to the Group Treasury monthly
   auctionAutoBidDiscountPct: number; // 0-40, how far below market value the auction auto-pilot is willing to bid
   auctionLots: AuctionLot[]; // today's wholesale auction lots, cached here so auto-pilot and the manual UI see/consume the same batch
   auctionLotsDay: number; // the game day auctionLots was generated for

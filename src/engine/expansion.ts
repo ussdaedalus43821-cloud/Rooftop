@@ -236,6 +236,23 @@ export function transferToTreasury(state: GameState, dealershipId: string, amoun
   return true;
 }
 
+/**
+ * Run once per month, per dealership, right after that store's own month
+ * closes out (overhead/payroll/floor-plan interest already paid, net
+ * income already booked) — sweeps whatever cash sits above the store's own
+ * working-capital threshold into the Group Treasury, so a player running a
+ * large group isn't stuck manually moving money out of a dozen-plus
+ * accounts by hand. Leaves the threshold itself behind so the store can
+ * still cover its own floor-plan curtailment and day-to-day expenses.
+ */
+export function autoSweepDealership(state: GameState, d: Dealership): void {
+  if (!d.autoPilot.treasury) return;
+  const surplus = d.ledger.cash - d.autoSweepThreshold;
+  if (surplus <= 0) return;
+  distributeToOwner(d, surplus);
+  state.groupTreasury += surplus;
+}
+
 /** Move cash from the pooled group treasury into a store's own books. */
 export function transferFromTreasury(state: GameState, dealershipId: string, amount: number): boolean {
   const d = state.dealerships[dealershipId];

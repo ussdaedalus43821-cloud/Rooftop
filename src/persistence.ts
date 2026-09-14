@@ -32,9 +32,11 @@ export function saveGame(state: GameState): SaveResult {
 function migrateState(state: GameState): GameState {
   for (const d of Object.values(state.dealerships)) {
     if (d.isHouseBrand === undefined) d.isHouseBrand = false;
-    if (!d.autoPilot) d.autoPilot = { sales: false, fi: false, auction: false, allocation: false };
+    if (!d.autoPilot) d.autoPilot = { sales: false, fi: false, auction: false, allocation: false, treasury: false };
     if (d.autoPilot.auction === undefined) d.autoPilot.auction = false;
     if (d.autoPilot.allocation === undefined) d.autoPilot.allocation = false;
+    if (d.autoPilot.treasury === undefined) d.autoPilot.treasury = false;
+    if (d.autoSweepThreshold === undefined) d.autoSweepThreshold = 100_000;
     if (d.auctionAutoBidDiscountPct === undefined) d.auctionAutoBidDiscountPct = 10;
     if (!d.auctionLots) d.auctionLots = [];
     if (d.auctionLotsDay === undefined) d.auctionLotsDay = -1;

@@ -11,6 +11,7 @@ import { monthlyCareerCycle } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
+import { autoSweepDealership } from "./expansion.js";
 import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -203,6 +204,15 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
         `${d.name} — ${justFinalized.monthLabel}: net ${justFinalized.netIncome >= 0 ? "profit" : "loss"} of $${Math.abs(Math.round(justFinalized.netIncome)).toLocaleString()}.`,
         justFinalized.netIncome >= 0 ? "good" : "warn",
       );
+      // Sweep any surplus above this store's own working-capital threshold
+      // now that its month is fully closed out (overhead/payroll/floor-plan
+      // interest already paid) — leaves what it needs to run itself.
+      const cashBeforeSweep = d.ledger.cash;
+      autoSweepDealership(state, d);
+      const swept = cashBeforeSweep - d.ledger.cash;
+      if (swept > 0) {
+        pushToast(state, `${d.name}: swept $${Math.round(swept).toLocaleString()} to the Group Treasury.`, "good");
+      }
     }
     monthlyCareerCycle(state, state.day);
     if (state.career.milestoneOfferPending) {
