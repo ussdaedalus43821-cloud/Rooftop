@@ -195,9 +195,12 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     }
   }
 
-  const gmTrained = applyGmStaffManagement(d);
-  for (const member of gmTrained) {
+  const gmResult = applyGmStaffManagement(d);
+  for (const member of gmResult.trained) {
     pushToast(state, `${d.name}: your GM sent ${member.name} for training — skill improved.`, "good");
+  }
+  for (const member of gmResult.raised) {
+    pushToast(state, `${d.name}: your GM gave ${member.name} a raise to $${Math.round(member.monthlySalary * 12).toLocaleString()}/yr after a sustained run of earning it.`, "good");
   }
 
   for (const stat of Object.values(d.modelStats)) {

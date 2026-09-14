@@ -100,6 +100,8 @@ export interface StaffMember {
   dealsThisMonth: number;
   grossThisMonth: number;
   incentivesThisMonth: number; // bonus $ earned this month (top-performer, aged-unit clearance, dept pool, GM)
+  meritStreak: number; // consecutive months this person has earned a performance incentive — sustaining it long enough earns a real, permanent raise
+  raisesReceived: number; // lifetime count of permanent merit raises, capped
 }
 
 export interface Customer {

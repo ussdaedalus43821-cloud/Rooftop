@@ -120,6 +120,16 @@ export function applyMonthlyIncentives(d: Dealership, preIncentiveNetIncome: num
   const gm = d.staff.find((s) => s.role === "gm");
   if (gm && preIncentiveNetIncome > 0) pay(gm, preIncentiveNetIncome * GM_BONUS_RATE, "General Manager Bonus");
 
+  // Earning any incentive this month — a top-seller/F&I bonus, a service
+  // pool share, an aged-unit spiff earlier in the month, a GM bonus — is
+  // the actual "you demonstrably earned your pay" signal a merit raise
+  // should track, rather than inventing a second, parallel performance
+  // metric. Anyone who didn't earn one resets to zero: a raise has to be
+  // proven again, not coasted on from an old hot streak.
+  for (const s of d.staff) {
+    s.meritStreak = s.incentivesThisMonth > 0 ? s.meritStreak + 1 : 0;
+  }
+
   return { total, awards };
 }
 
@@ -146,8 +156,43 @@ export function awardAgedUnitBonus(d: Dealership, rep: StaffMember | undefined, 
 const GM_MAX_TRAINS_PER_MONTH = 2;
 const GM_TRAIN_SKILL_THRESHOLD = 70;
 
-export function applyGmStaffManagement(d: Dealership): StaffMember[] {
-  if (!d.staff.some((s) => s.role === "gm")) return [];
+// A raise is a real, permanent bump to base salary — the actual
+// "pay for performance" lever the one-off monthly incentives above never
+// were — earned by sustaining a performance incentive (see meritStreak in
+// applyMonthlyIncentives) for several months running, not by one hot
+// month. Capped so it compounds into a meaningful but bounded senior-tier
+// premium rather than spiraling payroll on a decades-long save.
+const RAISE_PCT = 0.08;
+const RAISE_STREAK_THRESHOLD = 3;
+export const MAX_RAISES = 5;
+const RAISE_MORALE_BUMP = 10;
+
+export function raiseEligible(member: StaffMember): boolean {
+  return member.raisesReceived < MAX_RAISES;
+}
+
+function grantRaise(member: StaffMember): void {
+  member.monthlySalary = Math.round(member.monthlySalary * (1 + RAISE_PCT));
+  member.raisesReceived += 1;
+  member.meritStreak = 0; // has to prove it again for the next one
+  member.morale = Math.min(100, member.morale + RAISE_MORALE_BUMP);
+}
+
+/** Player-initiated: give someone a raise right now, regardless of their streak — a proactive retention play, not just a reward for hitting a threshold. Still respects the same lifetime cap the automatic path does. */
+export function giveRaise(d: Dealership, staffId: string): boolean {
+  const member = d.staff.find((s) => s.id === staffId);
+  if (!member || !raiseEligible(member)) return false;
+  grantRaise(member);
+  return true;
+}
+
+export interface GmStaffManagementResult {
+  trained: StaffMember[];
+  raised: StaffMember[];
+}
+
+export function applyGmStaffManagement(d: Dealership): GmStaffManagementResult {
+  if (!d.staff.some((s) => s.role === "gm")) return { trained: [], raised: [] };
   const trained: StaffMember[] = [];
   const candidates = d.staff
     .filter((s) => s.role !== "gm" && s.skill < GM_TRAIN_SKILL_THRESHOLD)
@@ -157,7 +202,16 @@ export function applyGmStaffManagement(d: Dealership): StaffMember[] {
     if (d.ledger.cash - TRAIN_COST < d.autoSweepThreshold) break;
     if (trainStaff(d, member.id)) trained.push(member);
   }
-  return trained;
+
+  const raised: StaffMember[] = [];
+  for (const member of d.staff) {
+    if (member.meritStreak >= RAISE_STREAK_THRESHOLD && raiseEligible(member)) {
+      grantRaise(member);
+      raised.push(member);
+    }
+  }
+
+  return { trained, raised };
 }
 
 // Hiring a salesperson has never been bounded by anything but cash — a
@@ -193,6 +247,8 @@ export function hireStaff(d: Dealership, role: SalesRole, rng: Rng): StaffMember
     dealsThisMonth: 0,
     grossThisMonth: 0,
     incentivesThisMonth: 0,
+    meritStreak: 0,
+    raisesReceived: 0,
   };
   d.staff.push(member);
   if (role === "service_tech") d.service.techs.push(member);

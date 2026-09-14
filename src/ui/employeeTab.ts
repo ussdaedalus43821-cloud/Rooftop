@@ -2,7 +2,7 @@ import type { TabModule } from "./types.js";
 import type { SalesRole, StaffMember } from "../types.js";
 import { money } from "./format.js";
 import { escapeHtml } from "./app.js";
-import { fireStaff, hireCost, hireStaff, maxSalesStaff, trainCost, trainStaff } from "../engine/staffing.js";
+import { fireStaff, giveRaise, hireCost, hireStaff, MAX_RAISES, maxSalesStaff, raiseEligible, trainCost, trainStaff } from "../engine/staffing.js";
 import { pushToast } from "../engine/engine.js";
 
 const ROLE_LABELS: Record<SalesRole, string> = {
@@ -49,14 +49,15 @@ export const employeeTab: TabModule = {
         <p class="text-faint" style="font-size:11.5px;">Annual salary is base pay only — commission and incentive bonuses are paid on top and shown separately. Skill grows on its own the longer someone's on staff (up to a point); training is the fast track past that. Morale now tracks how the store's been doing — let it sink and a skilled employee is a real flight risk to a rival lot; a long enough career ends in retirement or, for your best people, a shot at General Manager.</p>
         <div class="table-wrap"><table>
           <thead><tr>
-            <th>Name</th><th>Role</th><th class="num">Tenure</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Annual Salary</th>
+            <th>Name</th><th>Role</th><th class="num">Tenure</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Annual Salary</th><th class="num">Raises</th>
             <th class="num">Deals MTD</th><th class="num">Gross MTD</th><th class="num">Incentives MTD</th><th></th>
           </tr></thead>
           <tbody>
-            ${staff.length === 0 ? '<tr><td colspan="10" class="list-empty">No staff yet.</td></tr>' : staff.map((s) => {
+            ${staff.length === 0 ? '<tr><td colspan="11" class="list-empty">No staff yet.</td></tr>' : staff.map((s) => {
               const years = s.experienceDays / 365;
               const tenureLabel = years >= 1 ? `${years.toFixed(1)}y` : `${s.experienceDays}d`;
               const moraleClass = s.morale < 45 ? "text-bad" : s.morale >= 70 ? "text-good" : "";
+              const eligible = raiseEligible(s);
               return `<tr>
               <td>${escapeHtml(s.name)}</td>
               <td>${ROLE_LABELS[s.role]}</td>
@@ -64,11 +65,13 @@ export const employeeTab: TabModule = {
               <td class="num">${Math.round(s.skill)}</td>
               <td class="num ${moraleClass}">${Math.round(s.morale)}</td>
               <td class="num">${money(s.monthlySalary * 12)}</td>
+              <td class="num" title="${s.meritStreak} consecutive month(s) earning a performance incentive">${s.raisesReceived}/${MAX_RAISES}</td>
               <td class="num">${TRACKS_DEALS[s.role] ? s.dealsThisMonth : "—"}</td>
               <td class="num">${TRACKS_DEALS[s.role] ? money(s.grossThisMonth) : "—"}</td>
               <td class="num text-good">${s.incentivesThisMonth > 0 ? money(s.incentivesThisMonth) : "—"}</td>
               <td>
                 <button class="btn btn-sm" data-action="employees:train" data-staff="${s.id}">Train ${money(trainCost())}</button>
+                <button class="btn btn-sm ${eligible ? "btn-good" : ""}" data-action="employees:raise" data-staff="${s.id}" ${eligible ? "" : "disabled"}>Give Raise +8%</button>
                 <button class="btn btn-sm btn-bad" data-action="employees:fire" data-staff="${s.id}">Let Go</button>
               </td>
             </tr>`;
@@ -104,6 +107,7 @@ export const employeeTab: TabModule = {
           <tr><td>Aged-Unit Clearance</td><td>Selling a vehicle that's sat 45+ days pays the closing rep a spiff on the spot — up to $1,500 the longer it sat — instead of just leaving it to bleed floor-plan interest.</td></tr>
           <tr><td>Service Pool</td><td>Techs and advisors aren't tracked deal-by-deal, so 3% of the department's combined gross is split across them by skill each month.</td></tr>
           <tr><td>General Manager</td><td>Automatically clears due floor-plan curtailment every day and sends your two weakest staff to training every month, then earns 2% of the store's own net income for the month, whenever it's positive.</td></tr>
+          <tr><td>Merit Raises</td><td>Earning any incentive above three months running is a proven track record, not a hot streak — your GM gives them a permanent +8% base-salary raise automatically (up to 5 lifetime). You can also give someone a raise yourself anytime, as a proactive retention play — same cap either way.</td></tr>
         </tbody></table>
       </div>`;
 
@@ -114,6 +118,13 @@ export const employeeTab: TabModule = {
     if (action === "employees:train") {
       const ok = trainStaff(d, target.getAttribute("data-staff")!);
       pushToast(ctx.state, ok ? "Training complete — skill improved." : "Not enough cash to train.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "employees:raise") {
+      const staffId = target.getAttribute("data-staff")!;
+      const member = d.staff.find((s) => s.id === staffId);
+      const ok = giveRaise(d, staffId);
+      pushToast(ctx.state, ok ? `Gave ${member!.name} a raise — up to $${Math.round(member!.monthlySalary * 12).toLocaleString()}/yr.` : "Already at the lifetime raise cap.", ok ? "good" : "warn");
       return true;
     }
     if (action === "employees:fire") {

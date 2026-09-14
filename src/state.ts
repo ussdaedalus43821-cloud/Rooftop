@@ -70,6 +70,8 @@ function makeStaff(rng: Rng, role: StaffMember["role"], skill: number, salary: n
     dealsThisMonth: 0,
     grossThisMonth: 0,
     incentivesThisMonth: 0,
+    meritStreak: 0,
+    raisesReceived: 0,
   };
 }
 

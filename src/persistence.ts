@@ -49,6 +49,8 @@ function migrateState(state: GameState): GameState {
     }
     for (const s of d.staff) {
       if (s.incentivesThisMonth === undefined) s.incentivesThisMonth = 0;
+      if (s.meritStreak === undefined) s.meritStreak = 0;
+      if (s.raisesReceived === undefined) s.raisesReceived = 0;
     }
     // One-time cleanup for saves from before the service queue was capped:
     // an unbounded backlog (retained customer base scaling demand forever
