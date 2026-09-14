@@ -44,7 +44,7 @@ export function monthlyCareerCycle(state: GameState, day: number): void {
 
 export type MilestoneChoice = "equity" | "new_rooftop" | "decline";
 
-export function resolveMilestone(state: GameState, choice: MilestoneChoice, day: number, rng: Rng): void {
+export function resolveMilestone(state: GameState, choice: MilestoneChoice, day: number, rng: Rng, newRooftopName?: string): void {
   const d = state.dealerships[state.activeDealershipId];
   state.career.milestoneOfferPending = false;
 
@@ -67,7 +67,7 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
     const option = getFranchiseOption(d.manufacturer.franchiseKey);
     const capital = Math.max(option.startingCash * 0.6, state.career.bonusPoolAccrued * 3);
     const newId = nextId("dlr");
-    const groupName = `${rng.pick(["Summit", "Harbor", "Crossroads", "Union", "Cascade"])} ${option.brand}`;
+    const groupName = newRooftopName?.trim() || `${rng.pick(["Summit", "Harbor", "Crossroads", "Union", "Cascade"])} ${option.brand}`;
     const newDealership = createDealership(rng, newId, groupName, d.manufacturer.franchiseKey, day, capital);
     state.dealerships[newId] = newDealership;
 

@@ -37,6 +37,7 @@ let newGameSetupActive = false;
 let pickerCategory: FranchiseCategory | null = null;
 let pickerBrand: FranchiseKey | null = null;
 let notificationsPanelOpen = false;
+let newRooftopNameDraft = "";
 
 export function isNewGameSetupActive(): boolean {
   return newGameSetupActive;
@@ -206,6 +207,8 @@ function roleLabel(state: GameState): string {
 function renderMilestoneModal(): string {
   if (!ctx || !ctx.state.career.milestoneOfferPending) return "";
   const c = ctx.state.career;
+  const d = ctx.state.dealerships[ctx.state.activeDealershipId];
+  const brand = getFranchiseOption(d.manufacturer.franchiseKey).brand;
   return `
   <div class="modal-backdrop">
     <div class="modal">
@@ -216,7 +219,11 @@ function renderMilestoneModal(): string {
         <button class="btn btn-good" data-action="milestone:choose" data-choice="new_rooftop">Quit and found your own rooftop</button>
         <button class="btn" data-action="milestone:choose" data-choice="decline">Not yet</button>
       </div>
-      <p class="text-faint" style="font-size:12px;margin-top:8px;">Founding your own rooftop means walking away for good — you never held equity here, so this store isn't yours to bring with you. It stays behind, and your bonus pool becomes the seed capital for a brand-new store you own outright.</p>
+      <p class="text-faint" style="font-size:12px;margin-top:8px;">Founding your own rooftop means walking away for good — you never held equity here, so this store isn't yours to bring with you. It stays behind, and your bonus pool becomes the seed capital for a brand-new store you own outright — under whatever name you give it, not this one's.</p>
+      <div style="margin-top:8px;">
+        <label class="text-faint" style="font-size:12px;display:block;margin-bottom:4px;">Name your new rooftop (only used if you found one):</label>
+        <input type="text" placeholder="e.g. ${escapeHtml(brand)} of Meridian" value="${escapeHtml(newRooftopNameDraft)}" data-action="milestone:setName" style="width:100%;" maxlength="60" />
+      </div>
     </div>
   </div>`;
 }
@@ -259,7 +266,8 @@ function onClick(e: MouseEvent): void {
   }
   if (action === "milestone:choose") {
     const choice = target.getAttribute("data-choice") as "equity" | "new_rooftop" | "decline";
-    resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng);
+    resolveMilestone(ctx.state, choice, ctx.state.day, ctx.rng, newRooftopNameDraft.trim() || undefined);
+    newRooftopNameDraft = "";
     ctx.markDirty();
     render();
     return;
@@ -321,6 +329,10 @@ function onInput(e: Event): void {
   if (action === "newgame:setBrand" && target instanceof HTMLSelectElement) {
     pickerBrand = (target.value || null) as FranchiseKey | null;
     render();
+    return;
+  }
+  if (action === "milestone:setName" && target instanceof HTMLInputElement) {
+    newRooftopNameDraft = target.value;
     return;
   }
   const mod = activeTabModule();
