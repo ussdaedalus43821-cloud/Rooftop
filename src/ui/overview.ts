@@ -49,6 +49,7 @@ import {
   canLaunchNewModel,
   newModelCost,
   launchNewModel,
+  nextModelLabel,
   MAX_MANUFACTURER_MODELS,
   type ManufacturerCoFunding,
 } from "../engine/manufacturerCo.js";
@@ -322,7 +323,7 @@ export const overviewTab: TabModule = {
           <button class="btn btn-sm" data-action="overview:investMfgRnD" ${rndMaxed || d.ledger.cash < rndCost ? "disabled" : ""}>${rndMaxed ? "R&D Maxed" : `R&D: Cut Cost (${money(rndCost)})`}</button>
           <button class="btn btn-sm" data-action="overview:investMfgCapacity" ${capMaxed || d.ledger.cash < capCost ? "disabled" : ""}>${capMaxed ? "Capacity Maxed" : `More Capacity (${money(capCost)})`}</button>
           <button class="btn btn-sm" data-action="overview:investMfgMarketing" ${reputationMaxed || d.ledger.cash < mktCost ? "disabled" : ""}>${reputationMaxed ? "Reputation Maxed" : `Marketing Push (${money(mktCost)})`}</button>
-          <button class="btn btn-sm" data-action="overview:launchNewModel" ${modelsMaxed || !modelReady || d.ledger.cash < newModelPrice ? "disabled" : ""}>${modelsMaxed ? "Lineup Complete" : `Launch New Model (${money(newModelPrice)})`}</button>
+          <button class="btn btn-sm" data-action="overview:launchNewModel" ${modelsMaxed || !modelReady || d.ledger.cash < newModelPrice ? "disabled" : ""}>${modelsMaxed ? "Lineup Complete" : `${nextModelLabel(ctx.state)} (${money(newModelPrice)})`}</button>
           <button class="btn btn-sm btn-primary" data-action="overview:sweepManufacturer" ${mc.cash <= 0 ? "disabled" : ""}>Sweep ${money(mc.cash)} To Treasury</button>
         </div>
         <p class="text-faint" style="font-size:11px;margin-top:8px;">Investments paid from ${escapeHtml(d.name)}'s cash — the current store you're viewing.</p>

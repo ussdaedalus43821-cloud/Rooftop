@@ -90,13 +90,49 @@ const CLASS_SPECS: ClassSpec[] = [
   },
 ];
 
-export const MAX_MANUFACTURER_MODELS = CLASS_SPECS.length;
+// Two pinnacle models beyond the ordinary six-class lineup — not new body
+// styles so much as a statement of how far the brand has come. The first is
+// a flagship halo car priced and costed like a real automaker's flagship
+// program; the second is a technology-showcase hypercar, nominally sold to
+// the public in tiny numbers but priced (and costed to launch) like the
+// genuinely exceptional undertaking it is.
+interface PinnacleSpec {
+  name: string;
+  trim: string;
+  cls: VehicleClass;
+  msrpByCategory: Record<FranchiseCategory, number>;
+  desirability: number;
+}
+
+const PINNACLE_MODELS: PinnacleSpec[] = [
+  {
+    name: "Zenith",
+    trim: "Flagship Halo",
+    cls: "coupe",
+    msrpByCategory: { mainstream: 185_000, value: 165_000, luxury: 295_000, online: 240_000 },
+    desirability: 0.6,
+  },
+  {
+    name: "Ascendant",
+    trim: "Concept Edition",
+    cls: "ev",
+    msrpByCategory: { mainstream: 2_800_000, value: 2_400_000, luxury: 3_600_000, online: 3_200_000 },
+    desirability: 0.55,
+  },
+];
+
+const PINNACLE_MODEL_1_COST = 1_500_000_000; // a flagship halo program — "at least a billion or more, to match today's real world costs"
+const PINNACLE_MODEL_2_COST = 150_000_000_000; // an exceptional, barely-street-legal technology showcase — "100 billion dollars or more"
+
+export const MAX_MANUFACTURER_MODELS = CLASS_SPECS.length + PINNACLE_MODELS.length;
 const MAX_MODELS = MAX_MANUFACTURER_MODELS;
 // Months since founding required before the Nth additional model (index
 // into this array = models.length at the time of the check) can launch —
 // "for the first 24-48 months you can only sell one model, then as time
 // passes you can open more lines" was the explicit ask this implements.
-const MODEL_UNLOCK_MONTHS = [0, 24, 48, 72, 96, 120];
+// The last two entries gate the pinnacle models, which only ever become
+// reachable after the ordinary six-model lineup is already complete.
+const MODEL_UNLOCK_MONTHS = [0, 24, 48, 72, 96, 120, 180, 240];
 const NEW_MODEL_BASE_COST = 30_000_000;
 const NEW_MODEL_COST_GROWTH = 1.35;
 
@@ -123,6 +159,26 @@ function buildModel(rng: Rng, spec: ClassSpec, category: FranchiseCategory): Veh
     invoice: Math.round(msrp * 0.85), // transfer price charged to house-brand dealerships
     desirability: 0.4, // an unproven new brand — climbs as reputation grows
   };
+}
+
+function buildPinnacleModel(spec: PinnacleSpec, category: FranchiseCategory): VehicleModel {
+  const msrp = spec.msrpByCategory[category];
+  return {
+    name: spec.name,
+    trim: spec.trim,
+    class: spec.cls,
+    msrp,
+    invoice: Math.round(msrp * 0.85),
+    desirability: spec.desirability,
+  };
+}
+
+/** A friendlier label than "Launch New Model" for the two one-of-a-kind pinnacle slots. */
+export function nextModelLabel(state: GameState): string {
+  const nextIndex = state.manufacturerCo.models.length;
+  if (nextIndex === CLASS_SPECS.length) return "Launch Flagship Halo Car";
+  if (nextIndex === CLASS_SPECS.length + 1) return "Launch Ultra-Limited Hypercar";
+  return "Launch New Model";
 }
 
 export function newManufacturerCo(): ManufacturerCoState {
@@ -279,7 +335,10 @@ export function newModelUnlockMonths(state: GameState): number {
 }
 
 export function newModelCost(state: GameState): number {
-  const launchedBeyondStarter = Math.max(0, state.manufacturerCo.models.length - 1);
+  const nextIndex = state.manufacturerCo.models.length;
+  if (nextIndex === CLASS_SPECS.length) return PINNACLE_MODEL_1_COST;
+  if (nextIndex === CLASS_SPECS.length + 1) return PINNACLE_MODEL_2_COST;
+  const launchedBeyondStarter = Math.max(0, nextIndex - 1);
   return Math.round(NEW_MODEL_BASE_COST * Math.pow(NEW_MODEL_COST_GROWTH, launchedBeyondStarter));
 }
 
@@ -305,12 +364,20 @@ export function launchNewModel(state: GameState, payerDealershipId: string, rng:
   const cost = newModelCost(state);
   if (payer.ledger.cash < cost) return { ok: false, reason: "Not enough cash on hand." };
 
-  const queue = unlockQueue(mc.category);
-  const spec = queue[mc.models.length - 1];
-  if (!spec) return { ok: false, reason: "Your full lineup is already live." };
+  const nextIndex = mc.models.length;
+  let newModel: VehicleModel;
+  if (nextIndex < CLASS_SPECS.length) {
+    const spec = unlockQueue(mc.category)[nextIndex - 1];
+    if (!spec) return { ok: false, reason: "Your full lineup is already live." };
+    newModel = buildModel(rng, spec, mc.category);
+  } else {
+    const spec = PINNACLE_MODELS[nextIndex - CLASS_SPECS.length];
+    if (!spec) return { ok: false, reason: "Your full lineup is already live." };
+    newModel = buildPinnacleModel(spec, mc.category);
+  }
 
   postCashExpense(payer, cost);
-  mc.models.push(buildModel(rng, spec, mc.category));
+  mc.models.push(newModel);
   return { ok: true };
 }
 
