@@ -1,9 +1,10 @@
 import type { Dealership, GameState } from "../types.js";
 import { Rng } from "../rng.js";
 import { isNewMonth, monthLabel } from "./clock.js";
-import { tickInventoryDaily } from "./inventory.js";
+import { gmAutoManageFloorPlan, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
+import { economyDemandMultiplier, economyRateAdj, tickEconomyDaily } from "./economy.js";
 import { autoRunFi } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
@@ -11,8 +12,8 @@ import { monthlyCareerCycle } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
-import { autoSweepDealership } from "./expansion.js";
-import { applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
+import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
+import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
   accruePayroll,
   payAccruedPayroll,
@@ -42,11 +43,25 @@ function accruePayrollDaily(d: Dealership): void {
 function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   if (d.failure) return;
 
+  // Rescue before anything else runs today: a struggling store's cash
+  // crunch is what drives curtailment defaults and floor-plan violations
+  // in the first place, so topping it up needs to happen before those
+  // daily accruals, not after.
+  const rescued = autoRescueDealership(state, d);
+  if (rescued > 0) {
+    pushToast(state, `${d.name}: rescued with $${Math.round(rescued).toLocaleString()} from the Group Treasury.`, "warn");
+  }
+
   accruePayrollDaily(d);
   for (const s of d.staff) s.experienceDays += 1;
   tickInventoryDaily(d, state.day, rng);
   generateDailyServiceJobs(d, state.day, rng);
   processServiceJobs(d, state.day, rng);
+
+  const gmCurtailmentPaid = gmAutoManageFloorPlan(d);
+  if (gmCurtailmentPaid > 0) {
+    pushToast(state, `${d.name}: your GM cleared $${Math.round(gmCurtailmentPaid).toLocaleString()} in floor-plan curtailment before it became a problem.`, "good");
+  }
 
   if (d.autoPilot.auction) {
     const won = autoBidAuctionLots(d, state.day, rng);
@@ -72,9 +87,9 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
     }
   }
 
-  const ups = dailyUpCount(d, rng);
+  const ups = dailyUpCount(d, rng, economyDemandMultiplier(state));
   for (let i = 0; i < ups; i++) {
-    tryCreateUp(d, state.day, rng);
+    tryCreateUp(d, state.day, rng, economyRateAdj(state));
   }
 
   if (d.autoPilot.sales) {
@@ -158,6 +173,10 @@ function finalizeMonth(state: GameState, d: Dealership): number {
   if (!d.isHouseBrand) monthlyManufacturerCycle(d, state.day);
   const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
+  const gmTrained = applyGmStaffManagement(d);
+  for (const member of gmTrained) {
+    pushToast(state, `${d.name}: your GM sent ${member.name} for training — skill improved.`, "good");
+  }
 
   for (const stat of Object.values(d.modelStats)) {
     stat.unitsSoldLastMonth = stat.unitsSoldThisMonth;
@@ -188,6 +207,15 @@ function finalizeMonth(state: GameState, d: Dealership): number {
 
 export function advanceOneDay(state: GameState, rng: Rng): void {
   state.day += 1;
+
+  const econTick = tickEconomyDaily(state, rng);
+  if (econTick.eventEndedHeadline) {
+    pushToast(state, `Market update: "${econTick.eventEndedHeadline}" has run its course — conditions are normalizing.`, "info");
+  }
+  if (econTick.eventStarted) {
+    const good = econTick.eventStarted.demandMult >= 1 && econTick.eventStarted.rateAdj <= 0;
+    pushToast(state, `Market update: ${econTick.eventStarted.headline} — ${econTick.eventStarted.description}`, good ? "good" : "warn");
+  }
 
   for (const id of Object.keys(state.dealerships)) {
     tickDealershipDay(state, state.dealerships[id], rng);

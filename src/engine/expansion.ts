@@ -261,3 +261,24 @@ export function transferFromTreasury(state: GameState, dealershipId: string, amo
   injectCapital(d, amount);
   return true;
 }
+
+/**
+ * The reverse of autoSweepDealership: when a store's own cash has fallen
+ * below its working-capital threshold, top it back up out of the pooled
+ * Group Treasury (whatever the treasury can actually cover — a partial
+ * rescue is still better than none). Runs daily rather than monthly like
+ * the sweep-out does, because floor-plan violation severity accrues daily
+ * and never decays — a struggling store can slide into an audit failure
+ * well before the next month-end sweep would ever reach it. Returns the
+ * amount actually injected (0 if autopilot is off, the store isn't short,
+ * or the treasury itself is empty).
+ */
+export function autoRescueDealership(state: GameState, d: Dealership): number {
+  if (!d.autoPilot.treasury) return 0;
+  if (d.ledger.cash >= d.autoSweepThreshold) return 0;
+  const needed = d.autoSweepThreshold - d.ledger.cash;
+  const amount = Math.min(needed, state.groupTreasury);
+  if (amount <= 0) return 0;
+  transferFromTreasury(state, d.id, amount);
+  return amount;
+}

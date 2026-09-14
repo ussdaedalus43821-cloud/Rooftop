@@ -2,6 +2,7 @@ import type { GameState } from "./types.js";
 import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
 import { newManufacturerCo } from "./engine/manufacturerCo.js";
+import { newEconomyState } from "./engine/economy.js";
 
 const SAVE_KEY = "rooftop.save.v1";
 const MAX_SERVICE_QUEUE = 150;
@@ -72,6 +73,7 @@ function migrateState(state: GameState): GameState {
   if (!state.captiveLender) state.captiveLender = newCaptiveLender();
   if (!state.partsWarehouse) state.partsWarehouse = newPartsWarehouse();
   if (!state.manufacturerCo) state.manufacturerCo = newManufacturerCo();
+  if (!state.economy) state.economy = newEconomyState();
   return state;
 }
 

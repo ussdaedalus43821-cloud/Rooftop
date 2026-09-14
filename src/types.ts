@@ -371,6 +371,22 @@ export interface ManufacturerCoState {
   lifetimeProfit: number;
 }
 
+export interface EconomicEvent {
+  key: string;
+  headline: string;
+  description: string;
+  startDay: number;
+  endDay: number;
+  demandMult: number; // multiplies walk-in traffic on top of sentiment
+  rateAdj: number; // added to every customer's credit buy-rate APR this event
+}
+
+export interface EconomyState {
+  sentiment: number; // 0.55-1.45, a slow mean-reverting macro backdrop that's always drifting a little
+  currentEvent: EconomicEvent | null;
+  eventLog: { day: number; headline: string }[]; // recent history for a player-facing feed
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -392,4 +408,5 @@ export interface GameState {
   captiveLender: CaptiveLenderState;
   partsWarehouse: PartsWarehouseState;
   manufacturerCo: ManufacturerCoState;
+  economy: EconomyState;
 }

@@ -54,6 +54,7 @@ import {
   type ManufacturerCoFunding,
 } from "../engine/manufacturerCo.js";
 import { computeGroupNetWorth } from "../engine/career.js";
+import { economyMoodLabel } from "../engine/economy.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -88,6 +89,28 @@ export const overviewTab: TabModule = {
     const inv = checkInvariant(d);
     const dealershipCount = Object.keys(ctx.state.dealerships).length;
 
+    const econ = ctx.state.economy;
+    const mood = economyMoodLabel(ctx.state);
+    const moodClass = mood === "Strong" || mood === "Healthy" ? "text-good" : mood === "Weak" || mood === "Soft" ? "text-bad" : "";
+    const marketCard = `
+      <div class="card">
+        <h3>Market Conditions</h3>
+        <div class="big-number ${moodClass}">${mood}</div>
+        <div class="sub">Consumer sentiment index: ${econ.sentiment.toFixed(2)}× baseline demand</div>
+        ${econ.currentEvent ? `
+          <p style="margin:10px 0 0;"><strong>${escapeHtml(econ.currentEvent.headline)}</strong></p>
+          <p class="text-faint" style="font-size:11.5px;">${escapeHtml(econ.currentEvent.description)} Expected to run through day ${econ.currentEvent.endDay}.</p>
+        ` : `<p class="text-faint" style="font-size:11.5px;margin-top:10px;">No major market event active — demand and credit rates drift with the broader economy day to day.</p>`}
+        ${econ.eventLog.length > 0 ? `
+          <details style="margin-top:8px;">
+            <summary style="cursor:pointer;font-size:11.5px;color:var(--text-faint);">Recent market history</summary>
+            <table><tbody>
+              ${econ.eventLog.slice().reverse().map((e) => `<tr><td class="text-faint" style="font-size:11px;">Day ${e.day}</td><td style="font-size:11.5px;">${escapeHtml(e.headline)}</td></tr>`).join("")}
+            </tbody></table>
+          </details>
+        ` : ""}
+      </div>`;
+
     const groupCard = dealershipCount > 1 ? `
       <div class="card">
         <h3>Dealer Group</h3>
@@ -118,7 +141,7 @@ export const overviewTab: TabModule = {
         </div>
         <div class="btn-row" style="margin-top:10px;align-items:center;">
           <button class="btn btn-sm ${d.autoPilot.treasury ? "btn-good" : ""}" data-action="overview:toggleTreasuryAutoPilot">
-            Auto-Sweep ${escapeHtml(d.name)}: ${d.autoPilot.treasury ? "ON" : "OFF"}
+            Treasury Auto-Pilot ${escapeHtml(d.name)}: ${d.autoPilot.treasury ? "ON" : "OFF"}
           </button>
           <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
             keep
@@ -126,7 +149,7 @@ export const overviewTab: TabModule = {
             for itself
           </label>
         </div>
-        <p class="text-faint" style="font-size:11px;margin-top:6px;">When on, every store with this turned on sweeps whatever's above its own threshold into the Treasury automatically at month's end — no more moving cash by hand store by store.</p>
+        <p class="text-faint" style="font-size:11px;margin-top:6px;">Works both ways: at month's end, a store above its threshold sweeps the surplus into the Treasury; on any day it falls short of its threshold, it's automatically topped back up out of the Treasury (as far as the Treasury can cover) — a struggling store can save itself before it ever misses a curtailment payment. No more moving cash by hand store by store.</p>
       </div>` : "";
 
     const buildRooftopCard = ctx.state.career.role === "gm" ? "" : (() => {
@@ -426,6 +449,7 @@ export const overviewTab: TabModule = {
           <div class="sub">A ${money(inv.assets)} = L ${money(inv.liabilities)} + E ${money(inv.equity)}</div>
         </div>
       </div>
+      ${marketCard}
       ${groupCard}
       ${treasuryCard}
       ${captiveLenderCard}

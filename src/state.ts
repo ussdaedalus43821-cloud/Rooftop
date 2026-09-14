@@ -2,6 +2,7 @@ import { Rng } from "./rng.js";
 import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
 import { newManufacturerCo } from "./engine/manufacturerCo.js";
+import { newEconomyState } from "./engine/economy.js";
 import {
   CURTAILMENT_FRACTION,
   CURTAILMENT_GRACE_DAYS,
@@ -215,6 +216,7 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     captiveLender: newCaptiveLender(),
     partsWarehouse: newPartsWarehouse(),
     manufacturerCo: newManufacturerCo(),
+    economy: newEconomyState(),
   };
 }
 

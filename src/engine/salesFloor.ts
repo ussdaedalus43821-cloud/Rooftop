@@ -27,17 +27,19 @@ export function buildTerms(price: number, tradeAllowance: number, downPayment: n
   };
 }
 
-function creditProfile(rng: Rng): { tier: Customer["creditTier"]; buyRate: number } {
-  const roll = rng.next();
-  if (roll < 0.55) return { tier: "prime", buyRate: 0.055 };
-  if (roll < 0.85) return { tier: "nearprime", buyRate: 0.09 };
-  return { tier: "subprime", buyRate: 0.155 };
+// rateAdj comes from the current macro event (see engine/economy.ts) — a
+// rate hike or credit crunch pushes every tier's APR up, a rate cut pulls
+// it back down, on top of the flat base rate each tier already carries.
+function buyRateForTier(tier: Customer["creditTier"], rateAdj: number): number {
+  if (tier === "prime") return clamp(0.055 + rateAdj, 0.02, 0.35);
+  if (tier === "nearprime") return clamp(0.09 + rateAdj, 0.03, 0.4);
+  return clamp(0.155 + rateAdj, 0.05, 0.45);
 }
 
-function buyRateForTier(tier: Customer["creditTier"]): number {
-  if (tier === "prime") return 0.055;
-  if (tier === "nearprime") return 0.09;
-  return 0.155;
+function creditProfile(rng: Rng, rateAdj: number): { tier: Customer["creditTier"]; buyRate: number } {
+  const roll = rng.next();
+  const tier: Customer["creditTier"] = roll < 0.55 ? "prime" : roll < 0.85 ? "nearprime" : "subprime";
+  return { tier, buyRate: buyRateForTier(tier, rateAdj) };
 }
 
 function randomModelClass(d: Dealership, rng: Rng): VehicleClass {
@@ -46,8 +48,8 @@ function randomModelClass(d: Dealership, rng: Rng): VehicleClass {
   return rng.pick(lot).model.class;
 }
 
-export function generateCustomer(d: Dealership, day: number, rng: Rng): Customer {
-  const credit = creditProfile(rng);
+export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: number = 0): Customer {
+  const credit = creditProfile(rng, rateAdj);
   const hasTrade = rng.chance(0.45);
   const name = `${rng.pick(CUSTOMER_FIRST_NAMES)} ${rng.pick(CUSTOMER_LAST_NAMES)}`;
   return {
@@ -104,8 +106,12 @@ function leastBusySalesperson(d: Dealership): StaffMember | null {
   return available[0];
 }
 
-export function dailyUpCount(d: Dealership, rng: Rng): number {
-  const base = 3 + d.reputation / 22 + Math.min(unitsOnLot(d).length, 30) / 10;
+// demandMult comes from engine/economy.ts's sentiment index and current
+// event — a recession or credit crunch thins out walk-in traffic, a boom
+// or stimulus swells it, on top of whatever reputation and lot size alone
+// would draw in.
+export function dailyUpCount(d: Dealership, rng: Rng, demandMult: number = 1): number {
+  const base = (3 + d.reputation / 22 + Math.min(unitsOnLot(d).length, 30) / 10) * demandMult;
   return Math.max(0, Math.round(rng.gaussian(base, base * 0.25)));
 }
 
@@ -117,14 +123,14 @@ function vehiclesInActiveDeals(d: Dealership): Set<string> {
   return ids;
 }
 
-export function tryCreateUp(d: Dealership, day: number, rng: Rng): Deal | null {
+export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: number = 0): Deal | null {
   const reserved = vehiclesInActiveDeals(d);
   const lot = unitsOnLot(d).filter((v) => !reserved.has(v.id));
   if (lot.length === 0) return null;
   const rep = leastBusySalesperson(d);
   if (!rep) return null;
 
-  const customer = generateCustomer(d, day, rng);
+  const customer = generateCustomer(d, day, rng, rateAdj);
   const matches = lot.filter((v) => v.model.class === customer.interestedModelClass);
   const vehicle = matches.length > 0 ? rng.pick(matches) : rng.pick(lot);
 
@@ -132,7 +138,7 @@ export function tryCreateUp(d: Dealership, day: number, rng: Rng): Deal | null {
   // shopping, not a flat nationwide number — otherwise a $900/mo ceiling
   // makes every deal on a $70k+ truck or a luxury lot look unaffordable
   // no matter how good the price is.
-  const buyRate = buyRateForTier(customer.creditTier);
+  const buyRate = buyRateForTier(customer.creditTier, rateAdj);
   const referenceFinanced = Math.max(0, vehicle.listPrice - customer.downPaymentCash) * rng.range(0.85, 1);
   const referencePayment = computeMonthlyPayment(referenceFinanced, buyRate, 60);
   customer.budgetMonthly = Math.round(referencePayment * rng.range(0.85, 1.2));

@@ -40,6 +40,27 @@ export function payOffHeldUnit(d: Dealership, vehicleId: string): void {
   d.vehicles = d.vehicles.filter((x) => x.id !== vehicleId);
 }
 
+// A GM's actual job in real life: keeping the floor-plan line current so it
+// never becomes an audit problem in the first place, without the owner
+// having to click through every unit on every lot every day. Only kicks in
+// once a store has a GM on staff — hiring one is what pays for this getting
+// handled automatically instead of manually. Keeps a modest cash buffer so
+// a curtailment payment never itself tips the store into a cash crunch.
+const GM_CURTAILMENT_CASH_BUFFER = 15_000;
+
+export function gmAutoManageFloorPlan(d: Dealership): number {
+  if (!d.staff.some((s) => s.role === "gm")) return 0;
+  let paidTotal = 0;
+  for (const v of d.vehicles) {
+    if (v.stage === "sold") continue;
+    const due = getCurtailmentDue(v, d);
+    if (due <= 0) continue;
+    if (d.ledger.cash - due < GM_CURTAILMENT_CASH_BUFFER) continue;
+    paidTotal += payVehicleCurtailmentInFull(d, v);
+  }
+  return paidTotal;
+}
+
 function reconRequirementsFor(vehicle: Vehicle, rng: { range: (a: number, b: number) => number }): { cost: number; days: number } {
   if (vehicle.condition === "new") return { cost: 0, days: 0 };
   const conditionFactor = 1 - Math.min(1, vehicle.odometer / 150000);

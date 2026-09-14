@@ -2,7 +2,7 @@ import type { TabModule } from "./types.js";
 import type { SalesRole, StaffMember } from "../types.js";
 import { money } from "./format.js";
 import { escapeHtml } from "./app.js";
-import { fireStaff, hireCost, hireStaff, trainCost, trainStaff } from "../engine/staffing.js";
+import { fireStaff, hireCost, hireStaff, maxSalesStaff, trainCost, trainStaff } from "../engine/staffing.js";
 import { pushToast } from "../engine/engine.js";
 
 const ROLE_LABELS: Record<SalesRole, string> = {
@@ -39,6 +39,9 @@ export const employeeTab: TabModule = {
     const staff = sortStaff(d.staff);
     const hasGm = d.staff.some((s) => s.role === "gm");
     const canHireGm = ctx.state.career.role !== "gm" && !hasGm;
+    const salesCount = d.staff.filter((s) => s.role === "salesperson").length;
+    const salesCap = maxSalesStaff(d);
+    const atSalesCap = salesCount >= salesCap;
 
     const rosterCard = `
       <div class="card">
@@ -78,11 +81,11 @@ export const employeeTab: TabModule = {
       <div class="card">
         <h3>Hire</h3>
         <div class="grid grid-cols-3" style="gap:14px;">
-          ${hireRow("salesperson")}
+          ${hireRow("salesperson", atSalesCap, `${salesCount}/${salesCap} sales desks filled — a bigger floor needs facility investment (Manufacturer Relations tab), not just a bigger payroll.`)}
           ${hireRow("fi_manager")}
           ${hireRow("service_advisor")}
           ${hireRow("service_tech")}
-          ${hireRow("gm", !canHireGm, hasGm ? "Already staffed — one GM per store." : ctx.state.career.role === "gm" ? "You're running this store yourself as GM." : "Runs day-to-day; earns a cut of the store's net income each month.")}
+          ${hireRow("gm", !canHireGm, hasGm ? "Already staffed — one GM per store." : ctx.state.career.role === "gm" ? "You're running this store yourself as GM." : "Actually runs the place: clears floor-plan curtailment before it becomes a violation every day, sends your weakest staff to training every month, and earns a cut of net income for it.")}
         </div>
       </div>`;
 
@@ -94,7 +97,7 @@ export const employeeTab: TabModule = {
           <tr><td>Top F&amp;I Manager</td><td>Same idea — an extra 4% of the month's best F&amp;I gross.</td></tr>
           <tr><td>Aged-Unit Clearance</td><td>Selling a vehicle that's sat 45+ days pays the closing rep a spiff on the spot — up to $1,500 the longer it sat — instead of just leaving it to bleed floor-plan interest.</td></tr>
           <tr><td>Service Pool</td><td>Techs and advisors aren't tracked deal-by-deal, so 3% of the department's combined gross is split across them by skill each month.</td></tr>
-          <tr><td>General Manager</td><td>Earns 2% of the store's own net income for the month, whenever it's positive.</td></tr>
+          <tr><td>General Manager</td><td>Automatically clears due floor-plan curtailment every day and sends your two weakest staff to training every month, then earns 2% of the store's own net income for the month, whenever it's positive.</td></tr>
         </tbody></table>
       </div>`;
 
@@ -114,7 +117,7 @@ export const employeeTab: TabModule = {
     if (action === "employees:hire") {
       const role = target.getAttribute("data-role") as SalesRole;
       const hired = hireStaff(d, role, ctx.rng);
-      pushToast(ctx.state, hired ? `Hired ${hired.name}.` : "Couldn't hire — check cash on hand or (for GM) that the seat isn't already filled.", hired ? "good" : "warn");
+      pushToast(ctx.state, hired ? `Hired ${hired.name}.` : "Couldn't hire — check cash on hand, the sales floor cap, or (for GM) that the seat isn't already filled.", hired ? "good" : "warn");
       return true;
     }
     return false;

@@ -135,8 +135,49 @@ export function awardAgedUnitBonus(d: Dealership, rep: StaffMember | undefined, 
   return amount;
 }
 
+// A GM who does nothing but skim a bonus isn't managing anything — this is
+// the actual "manages staff" half of the job. Once a store has a GM on
+// staff, up to two of its weakest-skilled people get sent to training each
+// month automatically (paid for out of the store's own cash, same cost as
+// a manual train click), same as a real GM would run ongoing coaching
+// without the owner having to click through every employee by hand. Stops
+// once nobody's meaningfully behind (GM_TRAIN_SKILL_THRESHOLD), and never
+// drains the store below its own working-capital threshold to do it.
+const GM_MAX_TRAINS_PER_MONTH = 2;
+const GM_TRAIN_SKILL_THRESHOLD = 70;
+
+export function applyGmStaffManagement(d: Dealership): StaffMember[] {
+  if (!d.staff.some((s) => s.role === "gm")) return [];
+  const trained: StaffMember[] = [];
+  const candidates = d.staff
+    .filter((s) => s.role !== "gm" && s.skill < GM_TRAIN_SKILL_THRESHOLD)
+    .sort((a, b) => a.skill - b.skill);
+  for (const member of candidates) {
+    if (trained.length >= GM_MAX_TRAINS_PER_MONTH) break;
+    if (d.ledger.cash - TRAIN_COST < d.autoSweepThreshold) break;
+    if (trainStaff(d, member.id)) trained.push(member);
+  }
+  return trained;
+}
+
+// Hiring a salesperson has never been bounded by anything but cash — a
+// player could staff a small lot with dozens of reps and, since walk-in
+// traffic is driven by reputation and lot size rather than headcount (see
+// dailyUpCount in salesFloor.ts), that's pure unrealistic waste rather
+// than a real lever. This caps the sales floor the same way lot capacity
+// itself is capped: a small facility only has so many desks, so much
+// parking, so much floor — investing in facility standards is what buys
+// room for a bigger team, not just a bigger lot.
+const BASE_SALES_STAFF_CAP = 3;
+const FACILITY_SALES_STAFF_CAP_PER_POINT = 0.05; // facilityStandards 0-100 adds up to +5 seats at max investment
+
+export function maxSalesStaff(d: Dealership): number {
+  return Math.floor(BASE_SALES_STAFF_CAP + d.manufacturer.facilityStandards * FACILITY_SALES_STAFF_CAP_PER_POINT);
+}
+
 export function hireStaff(d: Dealership, role: SalesRole, rng: Rng): StaffMember | null {
   if (role === "gm" && d.staff.some((s) => s.role === "gm")) return null; // one GM seat per store
+  if (role === "salesperson" && d.staff.filter((s) => s.role === "salesperson").length >= maxSalesStaff(d)) return null;
   const cost = HIRE_COST[role];
   if (d.ledger.cash < cost) return null;
   postCashExpense(d, cost);
