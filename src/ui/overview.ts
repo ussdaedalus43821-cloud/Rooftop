@@ -253,7 +253,7 @@ export const overviewTab: TabModule = {
             <p class="sub" style="margin-top:4px;">${money(netWorth)} / ${money(MANUFACTURER_CO_UNLOCK_NET_WORTH)}</p>
           </div>`;
         }
-        const cost = manufacturerCoFoundCost();
+        const cost = manufacturerCoFoundCost(mfgCategory ?? "mainstream");
         const affordable = mfgFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost;
         const canFound = affordable && !!mfgCategory && mfgBrandNameDraft.trim().length > 0;
         return `

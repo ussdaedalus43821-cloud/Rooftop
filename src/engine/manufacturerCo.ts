@@ -22,7 +22,17 @@ export const MANUFACTURER_CO_UNLOCK_NET_WORTH = 40_000_000;
 // a dealer network to sell into — is a vastly bigger undertaking than any
 // other vertical here. Net worth merely has to clear the unlock line above;
 // affording to actually found one takes real, sustained growth past it.
-const FOUND_COST = 200_000_000;
+// Scales by brand personality the same way the model price tables already
+// do: a budget/value operation gets away with a leaner plant, a luxury
+// house brand demands premium tooling and materials engineering from day
+// one, and an online/EV-native brand carries real battery/charging capital
+// costs a traditional gas lineup doesn't.
+const FOUND_COST_BY_CATEGORY: Record<FranchiseCategory, number> = {
+  value: 150_000_000,
+  mainstream: 200_000_000,
+  online: 300_000_000,
+  luxury: 400_000_000,
+};
 const NEW_STORE_COST = 300_000;
 const CONVERSION_COST = 150_000;
 
@@ -208,8 +218,8 @@ export function newManufacturerCo(): ManufacturerCoState {
   };
 }
 
-export function manufacturerCoFoundCost(): number {
-  return FOUND_COST;
+export function manufacturerCoFoundCost(category: FranchiseCategory = "mainstream"): number {
+  return FOUND_COST_BY_CATEGORY[category];
 }
 
 export function manufacturerCoUnlocked(state: GameState): boolean {
@@ -230,14 +240,15 @@ export function foundManufacturerCo(state: GameState, funding: ManufacturerCoFun
   const name = brandName.trim();
   if (!name) return { ok: false, reason: "Give your brand a name." };
 
+  const cost = manufacturerCoFoundCost(category);
   if (funding === "treasury") {
-    if (state.groupTreasury < FOUND_COST) return { ok: false, reason: "Not enough in the group treasury." };
-    state.groupTreasury -= FOUND_COST;
+    if (state.groupTreasury < cost) return { ok: false, reason: "Not enough in the group treasury." };
+    state.groupTreasury -= cost;
   } else {
     const payer = state.dealerships[payerDealershipId];
     if (!payer) return { ok: false, reason: "Dealership not found." };
-    if (payer.ledger.cash < FOUND_COST) return { ok: false, reason: "Not enough cash on hand." };
-    postCashExpense(payer, FOUND_COST);
+    if (payer.ledger.cash < cost) return { ok: false, reason: "Not enough cash on hand." };
+    postCashExpense(payer, cost);
   }
 
   const mc = state.manufacturerCo;
