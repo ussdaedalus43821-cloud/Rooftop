@@ -30,7 +30,15 @@ export function checkInvariant(d: Dealership): InvariantCheck {
   const liabilities = totalLiabilities(d);
   const equity = totalEquity(d);
   const diff = assets - (liabilities + equity);
-  return { assets, liabilities, equity, diff, balanced: Math.abs(diff) < 0.01 };
+  // A flat cent tolerance is right at ordinary dealership scale, but once a
+  // group's balance sheet reaches into the billions/trillions (a mature
+  // Manufacturer Co., an acquired real manufacturer), ordinary double-
+  // precision float rounding across thousands of postings can drift past a
+  // fixed $0.01 even though the books are genuinely correct — so the
+  // tolerance scales with the size of the balance sheet itself, floored at
+  // the original cent-level precision for small/ordinary stores.
+  const tolerance = Math.max(0.01, assets * 1e-9);
+  return { assets, liabilities, equity, diff, balanced: Math.abs(diff) < tolerance };
 }
 
 /** Revenue/gross-profit dollars that flow straight to cash and retained earnings. */

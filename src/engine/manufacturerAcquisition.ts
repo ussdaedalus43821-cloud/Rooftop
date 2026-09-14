@@ -1,9 +1,11 @@
 // ---------------------------------------------------------------------------
 // Acquire a Manufacturer — buying out an entire real automaker's operation,
 // not just one of its dealerships (see engine/expansion.ts's
-// buyCompetitorDealership for that). Terrifyingly expensive by design: this
-// sits above every other lever in the game except Manufacturer Co.'s own
-// pinnacle models. Two outcomes on purchase:
+// buyCompetitorDealership for that). This is the single most expensive
+// thing in the game, full stop — priced above even Manufacturer Co.'s own
+// ultra-limited hypercar ($1.5T), because buying out a real OEM's entire
+// manufacturing operation is a bigger undertaking than launching one halo
+// car for your own from-scratch brand ever was. Two outcomes on purchase:
 //   - Merge it into your own house brand (state.manufacturerCo): folds a
 //     couple of its real models into your lineup and converts every
 //     dealership you already run under that franchise into a house-brand
@@ -25,17 +27,23 @@ import { computeGroupNetWorth } from "./career.js";
 import { monthIndex } from "./clock.js";
 import { applyHouseBrandRelations, MAX_MANUFACTURER_MODELS, rebrandDealershipName, redistributeManufacturerCapacity } from "./manufacturerCo.js";
 
-export const MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH = 1_000_000_000;
+// A teaser point, not an affordability point — same ratio to cost that
+// Manufacturer Co.'s own $40M unlock line carries against its $150M-$400M
+// founding cost: visible well before you can actually swing it, so it's a
+// real target to grow toward rather than a surprise that appears already
+// affordable.
+export const MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH = 300_000_000_000;
 
-// Sits between founding your own brand ($150M-$400M) and its pinnacle
-// models ($15B/$1.5T) — a real, next capstone goal once the group is
-// billionaire-tier, priced by the same brand-category logic Manufacturer
-// Co.'s founding cost already uses.
+// Every tier here is priced above Manufacturer Co.'s own $1.5T hypercar —
+// this is meant to read as "you could launch a dozen hypercars for what
+// this costs." Still scaled by brand category the same way every other
+// Manufacturer Co. cost is, so a value-brand buyout is relatively (not
+// absolutely) more reachable than a luxury one.
 const ACQUIRE_COST_BY_CATEGORY: Record<FranchiseCategory, number> = {
-  value: 3_000_000_000,
-  mainstream: 5_000_000_000,
-  online: 7_000_000_000,
-  luxury: 10_000_000_000,
+  value: 2_000_000_000_000,
+  mainstream: 3_500_000_000_000,
+  online: 5_000_000_000_000,
+  luxury: 8_000_000_000_000,
 };
 
 // The margin an acquired brand's own plant runs at when kept independent —
