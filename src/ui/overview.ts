@@ -43,6 +43,13 @@ import {
   marketingCost,
   investInMarketing,
   sweepManufacturerCoCash,
+  lineupMaxed,
+  monthsSinceFounding,
+  newModelUnlockMonths,
+  canLaunchNewModel,
+  newModelCost,
+  launchNewModel,
+  MAX_MANUFACTURER_MODELS,
   type ManufacturerCoFunding,
 } from "../engine/manufacturerCo.js";
 import { computeGroupNetWorth } from "../engine/career.js";
@@ -285,6 +292,11 @@ export const overviewTab: TabModule = {
       const capMaxed = manufacturerCapacityMaxed(ctx.state);
       const mktCost = marketingCost(ctx.state);
       const reputationMaxed = mc.reputation >= 100;
+      const modelsMaxed = lineupMaxed(ctx.state);
+      const monthsIn = monthsSinceFounding(ctx.state);
+      const monthsNeeded = newModelUnlockMonths(ctx.state);
+      const modelReady = canLaunchNewModel(ctx.state);
+      const newModelPrice = newModelCost(ctx.state);
 
       return `
       <div class="card">
@@ -305,10 +317,12 @@ export const overviewTab: TabModule = {
             ${mc.models.map((model) => `<tr><td>${escapeHtml(model.name)}</td><td style="text-transform:capitalize;">${model.class}</td><td class="num">${money(model.invoice)}</td><td class="num">${money(model.msrp)}</td></tr>`).join("")}
           </tbody>
         </table></div>
+        <p class="text-faint" style="font-size:11px;margin-top:6px;">${mc.models.length}/${MAX_MANUFACTURER_MODELS} model lines live${modelsMaxed ? "" : modelReady ? " — the next one is ready to launch." : ` — the next needs ${monthsNeeded} months of brand history (${monthsIn} so far).`}</p>
         <div class="btn-row" style="margin-top:10px;">
           <button class="btn btn-sm" data-action="overview:investMfgRnD" ${rndMaxed || d.ledger.cash < rndCost ? "disabled" : ""}>${rndMaxed ? "R&D Maxed" : `R&D: Cut Cost (${money(rndCost)})`}</button>
           <button class="btn btn-sm" data-action="overview:investMfgCapacity" ${capMaxed || d.ledger.cash < capCost ? "disabled" : ""}>${capMaxed ? "Capacity Maxed" : `More Capacity (${money(capCost)})`}</button>
           <button class="btn btn-sm" data-action="overview:investMfgMarketing" ${reputationMaxed || d.ledger.cash < mktCost ? "disabled" : ""}>${reputationMaxed ? "Reputation Maxed" : `Marketing Push (${money(mktCost)})`}</button>
+          <button class="btn btn-sm" data-action="overview:launchNewModel" ${modelsMaxed || !modelReady || d.ledger.cash < newModelPrice ? "disabled" : ""}>${modelsMaxed ? "Lineup Complete" : `Launch New Model (${money(newModelPrice)})`}</button>
           <button class="btn btn-sm btn-primary" data-action="overview:sweepManufacturer" ${mc.cash <= 0 ? "disabled" : ""}>Sweep ${money(mc.cash)} To Treasury</button>
         </div>
         <p class="text-faint" style="font-size:11px;margin-top:8px;">Investments paid from ${escapeHtml(d.name)}'s cash — the current store you're viewing.</p>
@@ -496,6 +510,11 @@ export const overviewTab: TabModule = {
     if (action === "overview:investMfgMarketing") {
       const ok = investInMarketing(ctx.state, ctx.state.activeDealershipId);
       pushToast(ctx.state, ok ? "Marketing push complete — brand reputation up." : "Couldn't run that campaign.", ok ? "good" : "warn");
+      return true;
+    }
+    if (action === "overview:launchNewModel") {
+      const result = launchNewModel(ctx.state, ctx.state.activeDealershipId, ctx.rng);
+      pushToast(ctx.state, result.ok ? "New model line launched!" : (result.reason ?? "Couldn't launch that model."), result.ok ? "good" : "warn");
       return true;
     }
     if (action === "overview:sweepManufacturer") {

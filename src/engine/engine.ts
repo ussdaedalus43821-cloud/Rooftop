@@ -59,9 +59,15 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   if (d.autoPilot.allocation) {
     const houseBrandModels = d.isHouseBrand ? liveHouseBrandCatalog(state.manufacturerCo) : undefined;
     const ordered = autoOrderAllocation(d, state.day, rng, houseBrandModels);
-    if (ordered) {
-      if (d.isHouseBrand) recordHouseBrandShipment(state, ordered.model);
-      pushToast(state, `Auto-ordered a ${ordered.model.name} ${ordered.model.trim} from the factory.`, "good");
+    if (ordered.length > 0) {
+      if (d.isHouseBrand) {
+        for (const v of ordered) recordHouseBrandShipment(state, v.model);
+      }
+      if (ordered.length === 1) {
+        pushToast(state, `Auto-ordered a ${ordered[0].model.name} ${ordered[0].model.trim} from the factory.`, "good");
+      } else {
+        pushToast(state, `Auto-ordered ${ordered.length} units from the factory to keep pace with allocation.`, "good");
+      }
     }
   }
 

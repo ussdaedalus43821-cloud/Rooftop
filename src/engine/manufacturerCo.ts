@@ -15,6 +15,7 @@ import { Rng } from "../rng.js";
 import { createDealership, nextId } from "../state.js";
 import { postCashExpense } from "./financials.js";
 import { computeGroupNetWorth } from "./career.js";
+import { monthIndex } from "./clock.js";
 
 export const MANUFACTURER_CO_UNLOCK_NET_WORTH = 40_000_000;
 // Standing up an actual vehicle manufacturer — plant, tooling, homologation,
@@ -51,6 +52,11 @@ interface ClassSpec {
   msrpByCategory: Record<FranchiseCategory, number>;
 }
 
+// A brand new manufacturer can't credibly launch a full lineup on day one —
+// it starts on a single flagship and earns the right to add more lines as
+// it proves itself, the same way a real new automaker does. Ordered as
+// they unlock; the starter (index 0) is chosen by category in
+// starterSpec/unlockQueue below, not by this array order.
 const CLASS_SPECS: ClassSpec[] = [
   {
     cls: "sedan",
@@ -67,25 +73,56 @@ const CLASS_SPECS: ClassSpec[] = [
     names: ["Foreman", "Bedrock", "Haulmark", "Ridgeback"],
     msrpByCategory: { mainstream: 38_000, value: 29_000, luxury: 62_000, online: 55_000 },
   },
+  {
+    cls: "coupe",
+    names: ["Velocity", "Nightline", "Apex", "Sprint"],
+    msrpByCategory: { mainstream: 30_000, value: 23_000, luxury: 65_000, online: 48_000 },
+  },
+  {
+    cls: "minivan",
+    names: ["Haven", "Voyage", "Kinfolk", "Wayfarer"],
+    msrpByCategory: { mainstream: 33_000, value: 25_000, luxury: 56_000, online: 47_000 },
+  },
+  {
+    cls: "ev",
+    names: ["Volt", "Surge", "Ion", "Pulse"],
+    msrpByCategory: { mainstream: 36_000, value: 27_000, luxury: 68_000, online: 45_000 },
+  },
 ];
 
-function generateStarterModels(rng: Rng, category: FranchiseCategory): VehicleModel[] {
-  const usedNames = new Set<string>();
-  return CLASS_SPECS.map((spec) => {
-    let name = rng.pick(spec.names);
-    while (usedNames.has(name) && usedNames.size < spec.names.length) name = rng.pick(spec.names);
-    usedNames.add(name);
-    const msrp = spec.msrpByCategory[category];
-    const cls: VehicleClass = category === "online" && spec.cls === "truck" ? "ev" : spec.cls;
-    return {
-      name,
-      trim: "Base",
-      class: cls,
-      msrp,
-      invoice: Math.round(msrp * 0.85), // transfer price charged to house-brand dealerships
-      desirability: 0.4, // an unproven new brand — climbs as reputation grows
-    };
-  });
+export const MAX_MANUFACTURER_MODELS = CLASS_SPECS.length;
+const MAX_MODELS = MAX_MANUFACTURER_MODELS;
+// Months since founding required before the Nth additional model (index
+// into this array = models.length at the time of the check) can launch —
+// "for the first 24-48 months you can only sell one model, then as time
+// passes you can open more lines" was the explicit ask this implements.
+const MODEL_UNLOCK_MONTHS = [0, 24, 48, 72, 96, 120];
+const NEW_MODEL_BASE_COST = 30_000_000;
+const NEW_MODEL_COST_GROWTH = 1.35;
+
+function starterSpec(category: FranchiseCategory): ClassSpec {
+  // An online/direct-to-consumer brand is EV-native from day one; everyone
+  // else starts on the bread-and-butter sedan.
+  const wanted = category === "online" ? "ev" : "sedan";
+  return CLASS_SPECS.find((s) => s.cls === wanted)!;
+}
+
+/** The order additional models unlock in, for a given brand's starter choice. */
+function unlockQueue(category: FranchiseCategory): ClassSpec[] {
+  const starter = starterSpec(category);
+  return CLASS_SPECS.filter((s) => s !== starter);
+}
+
+function buildModel(rng: Rng, spec: ClassSpec, category: FranchiseCategory): VehicleModel {
+  const msrp = spec.msrpByCategory[category];
+  return {
+    name: rng.pick(spec.names),
+    trim: "Base",
+    class: spec.cls,
+    msrp,
+    invoice: Math.round(msrp * 0.85), // transfer price charged to house-brand dealerships
+    desirability: 0.4, // an unproven new brand — climbs as reputation grows
+  };
 }
 
 export function newManufacturerCo(): ManufacturerCoState {
@@ -145,7 +182,7 @@ export function foundManufacturerCo(state: GameState, funding: ManufacturerCoFun
   mc.foundedDay = state.day;
   mc.brandName = name;
   mc.category = category;
-  mc.models = generateStarterModels(rng, category);
+  mc.models = [buildModel(rng, starterSpec(category), category)];
   mc.productionCapacity = CAPACITY_STARTING_UNITS;
   return { ok: true };
 }
@@ -193,6 +230,7 @@ export function foundHouseBrandDealership(state: GameState, funding: Manufacture
   const d = createDealership(rng, newId, `${mc.brandName} of ${rng.pick(["Meridian", "Harbor", "Union", "Crossroads", "Summit"])}`, PLACEHOLDER_FRANCHISE_KEY, state.day, NEW_STORE_COST * 0.5);
   applyHouseBrandRelations(state, d);
   state.dealerships[newId] = d;
+  redistributeManufacturerCapacity(state); // don't leave the new store waiting up to a month at zero allocation
   return { ok: true, newDealershipId: newId };
 }
 
@@ -218,6 +256,7 @@ export function convertToHouseBrand(state: GameState, dealershipId: string): Fou
   postCashExpense(d, CONVERSION_COST);
   d.name = rebrandDealershipName(d.name, d.brand, mc.brandName);
   applyHouseBrandRelations(state, d);
+  redistributeManufacturerCapacity(state); // don't leave the newly-converted store waiting up to a month at zero allocation
   return { ok: true };
 }
 
@@ -225,6 +264,54 @@ export function convertToHouseBrand(state: GameState, dealershipId: string): Fou
 export function liveHouseBrandCatalog(mc: ManufacturerCoState): VehicleModel[] {
   const bonus = (mc.reputation / 100) * 0.4;
   return mc.models.map((m) => ({ ...m, desirability: Math.min(1, m.desirability + bonus) }));
+}
+
+export function monthsSinceFounding(state: GameState): number {
+  const mc = state.manufacturerCo;
+  if (!mc.founded) return 0;
+  return monthIndex(state.day) - monthIndex(mc.foundedDay);
+}
+
+/** Months of brand history required before the next model beyond the current lineup can launch. */
+export function newModelUnlockMonths(state: GameState): number {
+  const nextIndex = state.manufacturerCo.models.length;
+  return MODEL_UNLOCK_MONTHS[Math.min(nextIndex, MODEL_UNLOCK_MONTHS.length - 1)];
+}
+
+export function newModelCost(state: GameState): number {
+  const launchedBeyondStarter = Math.max(0, state.manufacturerCo.models.length - 1);
+  return Math.round(NEW_MODEL_BASE_COST * Math.pow(NEW_MODEL_COST_GROWTH, launchedBeyondStarter));
+}
+
+export function lineupMaxed(state: GameState): boolean {
+  return state.manufacturerCo.models.length >= MAX_MODELS;
+}
+
+export function canLaunchNewModel(state: GameState): boolean {
+  if (!state.manufacturerCo.founded || lineupMaxed(state)) return false;
+  return monthsSinceFounding(state) >= newModelUnlockMonths(state);
+}
+
+/** Launches the next model in this brand's unlock queue — a new vehicle class the lineup didn't previously cover. Gated by both brand history (see MODEL_UNLOCK_MONTHS) and cash, same as the other levers. */
+export function launchNewModel(state: GameState, payerDealershipId: string, rng: Rng): FoundResult {
+  const mc = state.manufacturerCo;
+  if (!mc.founded) return { ok: false, reason: "Found your manufacturer first." };
+  if (lineupMaxed(state)) return { ok: false, reason: "Your full lineup is already live." };
+  if (!canLaunchNewModel(state)) {
+    return { ok: false, reason: `Needs ${newModelUnlockMonths(state)} months of brand history first (${monthsSinceFounding(state)} so far).` };
+  }
+  const payer = state.dealerships[payerDealershipId];
+  if (!payer) return { ok: false, reason: "Dealership not found." };
+  const cost = newModelCost(state);
+  if (payer.ledger.cash < cost) return { ok: false, reason: "Not enough cash on hand." };
+
+  const queue = unlockQueue(mc.category);
+  const spec = queue[mc.models.length - 1];
+  if (!spec) return { ok: false, reason: "Your full lineup is already live." };
+
+  postCashExpense(payer, cost);
+  mc.models.push(buildModel(rng, spec, mc.category));
+  return { ok: true };
 }
 
 /** Call after a house-brand dealership successfully orders a unit — books Manufacturer Co.'s own margin on that unit. */
@@ -239,6 +326,16 @@ export function recordHouseBrandShipment(state: GameState, model: VehicleModel):
   mc.lifetimeProfit += profit;
 }
 
+/** Splits current production capacity evenly across every house-brand dealership right now — called both by the monthly cycle and immediately whenever a store newly joins the network, so a fresh store isn't stuck at zero allocation for up to a month waiting for the next cycle. */
+function redistributeManufacturerCapacity(state: GameState): void {
+  const mc = state.manufacturerCo;
+  const houseBrandDealers = Object.values(state.dealerships).filter((d) => d.isHouseBrand);
+  const perStoreCap = houseBrandDealers.length > 0 ? Math.floor(mc.productionCapacity / houseBrandDealers.length) : 0;
+  for (const d of houseBrandDealers) {
+    d.manufacturer.allocationCapMonthly = perStoreCap;
+  }
+}
+
 /** Run once per in-game month: rolls this month's shipment stats into "last month," lets brand reputation drift up slowly, and re-splits production capacity across however many house-brand dealerships exist. */
 export function monthlyManufacturerCoCycle(state: GameState): void {
   const mc = state.manufacturerCo;
@@ -250,10 +347,9 @@ export function monthlyManufacturerCoCycle(state: GameState): void {
 
   mc.reputation = Math.min(100, mc.reputation + 0.6);
 
-  const houseBrandDealers = Object.values(state.dealerships).filter((d) => d.isHouseBrand);
-  const perStoreCap = houseBrandDealers.length > 0 ? Math.floor(mc.productionCapacity / houseBrandDealers.length) : 0;
-  for (const d of houseBrandDealers) {
-    d.manufacturer.allocationCapMonthly = perStoreCap;
+  redistributeManufacturerCapacity(state);
+  for (const d of Object.values(state.dealerships)) {
+    if (!d.isHouseBrand) continue;
     d.manufacturer.allocationOrderedThisMonth = 0;
     d.manufacturer.quotaAttainedThisMonth = 0;
   }
@@ -314,6 +410,7 @@ export function investInManufacturerCapacity(state: GameState, payerDealershipId
   if (payer.ledger.cash < cost) return false;
   postCashExpense(payer, cost);
   mc.productionCapacity += CAPACITY_STEP_UNITS;
+  redistributeManufacturerCapacity(state); // usable this month, not just after the next cycle
   return true;
 }
 

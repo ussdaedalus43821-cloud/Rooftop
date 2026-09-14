@@ -4,6 +4,7 @@ import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
 import { financeAcquisition } from "./financials.js";
 import { lotSpaceRemaining } from "./inventory.js";
+import { daysRemainingInMonth } from "./clock.js";
 
 const TIER_DESIRABILITY_CAP: Record<AllocationTier, number> = {
   bronze: 0.55,
@@ -88,7 +89,16 @@ export function orderAllocationUnit(d: Dealership, model: VehicleModel, day: num
   return v;
 }
 
-const AUTO_ORDER_MAX_ON_LOT_PER_MODEL = 4; // don't keep restocking a model that already isn't moving
+// A small catalog (a young house brand with only one or two models, say)
+// needs to be able to stock each model deeper than a large one to use the
+// same total allocation — otherwise a big monthly cap goes half-unused
+// because there's simply nowhere left to put the next unit of the only
+// model on offer. Keeps the same 4-per-model depth a typical ~15-model real
+// franchise catalog already got, while scaling that up for smaller lineups.
+const TARGET_TOTAL_PIPELINE_DEPTH = 16;
+function maxOnLotPerModel(catalogSize: number): number {
+  return Math.max(4, Math.round(TARGET_TOTAL_PIPELINE_DEPTH / Math.max(1, catalogSize)));
+}
 
 /**
  * Picks the new model most worth ordering right now: strongest recent sales
@@ -98,29 +108,57 @@ const AUTO_ORDER_MAX_ON_LOT_PER_MODEL = 4; // don't keep restocking a model that
  * no point restocking what isn't selling.
  */
 function pickBestModelToOrder(d: Dealership, houseBrandModels?: VehicleModel[]): VehicleModel | null {
-  const candidates = allocationCatalog(d, houseBrandModels)
+  const catalog = allocationCatalog(d, houseBrandModels);
+  const cap = maxOnLotPerModel(catalog.length);
+  const candidates = catalog
     .map((model) => {
       const onLot = d.vehicles.filter((v) => v.stage !== "sold" && v.model.name === model.name && v.model.trim === model.trim).length;
       const stat = d.modelStats[`new|${model.name}|${model.trim}`];
       const demand = stat ? stat.unitsSoldLastMonth + stat.unitsSoldThisMonth * 0.5 : model.desirability * 2;
       return { model, demand, onLot };
     })
-    .filter((c) => c.onLot < AUTO_ORDER_MAX_ON_LOT_PER_MODEL);
+    .filter((c) => c.onLot < cap);
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => b.demand - a.demand);
   return candidates[0].model;
 }
 
+// A flat one-a-day trickle quietly under-uses any allocation cap bigger
+// than "roughly a month's worth of days" — a store with a large cap (a
+// well-invested house-brand factory, a platinum-tier real franchise) would
+// only ever draw down about a third of what it's entitled to before the
+// month rolls over and the rest is forfeited. Paced ordering instead asks
+// "how many do I need today to still finish the month on quota," so it
+// speeds up automatically for a big cap and catches up if a stockout or a
+// slow start left it behind pace.
+const MAX_ORDERS_PER_TICK = 30; // a sane ceiling — lot space runs out well before this in practice
+
+function dailyOrderPace(d: Dealership, day: number): number {
+  const remaining = allocationRemainingThisMonth(d);
+  if (remaining <= 0) return 0;
+  const daysLeft = Math.max(1, daysRemainingInMonth(day));
+  return Math.min(MAX_ORDERS_PER_TICK, Math.max(1, Math.ceil(remaining / daysLeft)));
+}
+
 /**
- * Orders a steady one-a-day trickle of the best-selling model, rather than
- * either nothing (forgetting to restock) or the whole month's allocation up
- * front (flooding recon with cars nobody's actually asking for).
+ * Orders as many units today as it takes to keep pace with fully using this
+ * month's allocation by month's end (see dailyOrderPace), spread across
+ * whichever models are actually selling rather than dumping the whole
+ * month's cap on one model on day one.
  */
-export function autoOrderAllocation(d: Dealership, day: number, rng: Rng, houseBrandModels?: VehicleModel[]): Vehicle | null {
-  if (d.isUsedOnly || allocationRemainingThisMonth(d) <= 0) return null;
-  const model = pickBestModelToOrder(d, houseBrandModels);
-  if (!model) return null;
-  return orderAllocationUnit(d, model, day, rng);
+export function autoOrderAllocation(d: Dealership, day: number, rng: Rng, houseBrandModels?: VehicleModel[]): Vehicle[] {
+  if (d.isUsedOnly) return [];
+  const ordered: Vehicle[] = [];
+  const pace = dailyOrderPace(d, day);
+  for (let i = 0; i < pace; i++) {
+    if (allocationRemainingThisMonth(d) <= 0) break;
+    const model = pickBestModelToOrder(d, houseBrandModels);
+    if (!model) break;
+    const v = orderAllocationUnit(d, model, day, rng);
+    if (!v) break; // lot full — no point looping further today
+    ordered.push(v);
+  }
+  return ordered;
 }
 
 export function generateAuctionLots(rng: Rng, day: number, count = 6): AuctionLot[] {

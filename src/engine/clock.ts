@@ -66,3 +66,9 @@ export function monthIndex(day: number): number {
   const d = toCalendarDate(day);
   return d.year * 12 + d.month;
 }
+
+/** Days left in the current calendar month, today included — lets a monthly quota get paced against however many days remain rather than assumed to always be ~30. */
+export function daysRemainingInMonth(day: number): number {
+  const d = toCalendarDate(day);
+  return daysInMonth(d.year, d.month) - d.dayOfMonth + 1;
+}
