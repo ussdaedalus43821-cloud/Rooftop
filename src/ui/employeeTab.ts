@@ -46,18 +46,23 @@ export const employeeTab: TabModule = {
     const rosterCard = `
       <div class="card">
         <h3>Roster</h3>
-        <p class="text-faint" style="font-size:11.5px;">Annual salary is base pay only — commission and incentive bonuses are paid on top and shown separately. Skill grows on its own the longer someone's on staff (up to a point); training is the fast track past that.</p>
+        <p class="text-faint" style="font-size:11.5px;">Annual salary is base pay only — commission and incentive bonuses are paid on top and shown separately. Skill grows on its own the longer someone's on staff (up to a point); training is the fast track past that. Morale now tracks how the store's been doing — let it sink and a skilled employee is a real flight risk to a rival lot; a long enough career ends in retirement or, for your best people, a shot at General Manager.</p>
         <div class="table-wrap"><table>
           <thead><tr>
-            <th>Name</th><th>Role</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Annual Salary</th>
+            <th>Name</th><th>Role</th><th class="num">Tenure</th><th class="num">Skill</th><th class="num">Morale</th><th class="num">Annual Salary</th>
             <th class="num">Deals MTD</th><th class="num">Gross MTD</th><th class="num">Incentives MTD</th><th></th>
           </tr></thead>
           <tbody>
-            ${staff.length === 0 ? '<tr><td colspan="9" class="list-empty">No staff yet.</td></tr>' : staff.map((s) => `<tr>
+            ${staff.length === 0 ? '<tr><td colspan="10" class="list-empty">No staff yet.</td></tr>' : staff.map((s) => {
+              const years = s.experienceDays / 365;
+              const tenureLabel = years >= 1 ? `${years.toFixed(1)}y` : `${s.experienceDays}d`;
+              const moraleClass = s.morale < 45 ? "text-bad" : s.morale >= 70 ? "text-good" : "";
+              return `<tr>
               <td>${escapeHtml(s.name)}</td>
               <td>${ROLE_LABELS[s.role]}</td>
+              <td class="num">${tenureLabel}</td>
               <td class="num">${Math.round(s.skill)}</td>
-              <td class="num">${Math.round(s.morale)}</td>
+              <td class="num ${moraleClass}">${Math.round(s.morale)}</td>
               <td class="num">${money(s.monthlySalary * 12)}</td>
               <td class="num">${TRACKS_DEALS[s.role] ? s.dealsThisMonth : "—"}</td>
               <td class="num">${TRACKS_DEALS[s.role] ? money(s.grossThisMonth) : "—"}</td>
@@ -66,7 +71,8 @@ export const employeeTab: TabModule = {
                 <button class="btn btn-sm" data-action="employees:train" data-staff="${s.id}">Train ${money(trainCost())}</button>
                 <button class="btn btn-sm btn-bad" data-action="employees:fire" data-staff="${s.id}">Let Go</button>
               </td>
-            </tr>`).join("")}
+            </tr>`;
+            }).join("")}
           </tbody>
         </table></div>
       </div>`;

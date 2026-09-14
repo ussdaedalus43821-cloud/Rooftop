@@ -223,3 +223,112 @@ export function trainCost(): number {
 export function hireCost(role: SalesRole): number {
   return HIRE_COST[role];
 }
+
+// ---------------------------------------------------------------------------
+// Employee careers. Staff used to be fixtures: hire once, and absent a
+// manual "Let Go" click, the same person sits in the same seat forever —
+// morale was tracked (rolled at hire, nudged up by training) but never
+// actually read anywhere, so it did nothing. Now it does: a store's own
+// monthly performance moves it, and a skilled-but-unhappy employee is a
+// real flight risk instead of a permanent fixture. Runs once per in-game
+// month, after the month's net income is known.
+// ---------------------------------------------------------------------------
+const DAYS_PER_YEAR = 365;
+
+// Morale now tracks how the store is actually doing — a losing month stings
+// more than a winning one helps, and absent either it drifts back toward a
+// neutral baseline rather than getting stuck at whatever it last was.
+const MORALE_PROFIT_LIFT = 1.5;
+const MORALE_LOSS_DRAG = 3;
+const MORALE_BASELINE = 55;
+const MORALE_BASELINE_PULL = 0.05;
+
+// A genuine, multi-decade-adjacent career — eligible staff retire out
+// cleanly rather than sitting on the roster forever.
+const RETIREMENT_ELIGIBLE_DAYS = 15 * DAYS_PER_YEAR;
+const RETIREMENT_MONTHLY_CHANCE = 0.03;
+
+// Below this morale, a skilled employee is a real poaching target for a
+// rival lot — the better they are, the more likely someone else is
+// courting them. Well-treated staff (morale kept up via profitability,
+// training, promotion) essentially never leave this way.
+const POACH_MORALE_THRESHOLD = 45;
+const POACH_BASE_CHANCE = 0.015;
+const POACH_SKILL_WEIGHT = 0.06;
+
+// Your own best, most senior non-GM staffer can work their way into an
+// open GM seat instead of the owner always hiring a stranger off the
+// street — a real promotion path, not just a hire/fire roster.
+const PROMOTION_MIN_TENURE_DAYS = 2 * DAYS_PER_YEAR;
+const PROMOTION_MIN_SKILL = 75;
+const PROMOTION_MONTHLY_CHANCE = 0.12;
+const PROMOTION_MORALE_BUMP = 15;
+
+export interface CareerEvent {
+  member: StaffMember;
+  kind: "retired" | "poached" | "promoted" | "backfilled";
+}
+
+/** Run once per in-game month, after net income for the month is finalized. */
+export function applyStaffCareerCycle(d: Dealership, rng: Rng): CareerEvent[] {
+  const events: CareerEvent[] = [];
+  const profitable = d.currentMonth.netIncome > 0;
+  for (const s of d.staff) {
+    s.morale += profitable ? MORALE_PROFIT_LIFT : -MORALE_LOSS_DRAG;
+    s.morale += (MORALE_BASELINE - s.morale) * MORALE_BASELINE_PULL;
+    s.morale = Math.max(0, Math.min(100, s.morale));
+  }
+
+  // Promotion: a seasoned, high-skill staffer can fill an open GM seat.
+  if (!d.staff.some((s) => s.role === "gm")) {
+    const candidates = d.staff
+      .filter((s) => s.experienceDays >= PROMOTION_MIN_TENURE_DAYS && s.skill >= PROMOTION_MIN_SKILL)
+      .sort((a, b) => b.skill - a.skill);
+    if (candidates.length > 0 && rng.chance(PROMOTION_MONTHLY_CHANCE)) {
+      const promoted = candidates[0];
+      promoted.role = "gm";
+      promoted.monthlySalary = BASE_SALARY.gm;
+      promoted.commissionRate = undefined;
+      promoted.morale = Math.min(100, promoted.morale + PROMOTION_MORALE_BUMP);
+      d.service.techs = d.service.techs.filter((s) => s.id !== promoted.id);
+      d.service.advisors = d.service.advisors.filter((s) => s.id !== promoted.id);
+      events.push({ member: promoted, kind: "promoted" });
+    }
+  }
+
+  // Retirement and poaching — skip anyone just promoted this same cycle.
+  const promotedIds = new Set(events.map((e) => e.member.id));
+  const departingRoles: SalesRole[] = [];
+  for (const s of d.staff) {
+    if (promotedIds.has(s.id)) continue;
+    if (s.experienceDays >= RETIREMENT_ELIGIBLE_DAYS && rng.chance(RETIREMENT_MONTHLY_CHANCE)) {
+      events.push({ member: s, kind: "retired" });
+      departingRoles.push(s.role);
+      continue;
+    }
+    if (s.morale < POACH_MORALE_THRESHOLD) {
+      const unhappiness = (POACH_MORALE_THRESHOLD - s.morale) / POACH_MORALE_THRESHOLD;
+      const chance = POACH_BASE_CHANCE + (s.skill / 100) * POACH_SKILL_WEIGHT * unhappiness;
+      if (rng.chance(chance)) {
+        events.push({ member: s, kind: "poached" });
+        departingRoles.push(s.role);
+      }
+    }
+  }
+  for (const event of events) {
+    if (event.kind === "retired" || event.kind === "poached") fireStaff(d, event.member.id);
+  }
+
+  // A GM keeps the floor staffed — auto-backfills one departure per vacated
+  // non-GM role if cash allows, without draining the store's own reserve.
+  // If the GM itself just left, nobody's left to do this hiring.
+  if (d.staff.some((s) => s.role === "gm")) {
+    for (const role of departingRoles) {
+      if (d.ledger.cash - hireCost(role) < d.autoSweepThreshold) continue;
+      const hired = hireStaff(d, role, rng);
+      if (hired) events.push({ member: hired, kind: "backfilled" });
+    }
+  }
+
+  return events;
+}

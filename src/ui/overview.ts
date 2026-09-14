@@ -64,6 +64,7 @@ import {
   sweepAcquiredManufacturerCash,
   type ManufacturerAcquisitionFunding,
 } from "../engine/manufacturerAcquisition.js";
+import { defendTakeover, type TakeoverDefenseFunding } from "../engine/hostileTakeover.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -80,6 +81,7 @@ let mfgBrandNameDraft = "";
 let acquireMfgFunding: ManufacturerAcquisitionFunding = "active";
 let acquireMfgTarget: FranchiseKey | null = null;
 let acquireMfgMerge = false;
+let takeoverDefendFunding: TakeoverDefenseFunding = "active";
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -122,6 +124,30 @@ export const overviewTab: TabModule = {
           </details>
         ` : ""}
       </div>`;
+
+    const threat = ctx.state.takeoverThreat;
+    const takeoverCard = threat ? (() => {
+      const targetD = ctx.state.dealerships[threat.targetDealershipId];
+      if (!targetD) return "";
+      const daysLeft = Math.max(0, threat.deadlineDay - ctx.state.day);
+      const affordable = takeoverDefendFunding === "treasury" ? ctx.state.groupTreasury >= threat.defendCost : d.ledger.cash >= threat.defendCost;
+      return `
+      <div class="card" style="border-color:var(--bad);">
+        <h3 class="text-bad">Hostile Takeover — ${escapeHtml(threat.rivalName)}</h3>
+        <p>${threat.scope === "group" ? "A determined rival is making a play for" : "A rival is circling"} <strong>${escapeHtml(targetD.name)}</strong>${threat.scope === "group" ? ", your most valuable rooftop" : ", your weakest rooftop"}. Left undefended, they'll force a sale for ${money(threat.forcedPrice)} — well below what it's worth.</p>
+        <p class="sub"><strong>${daysLeft}</strong> day${daysLeft === 1 ? "" : "s"} left to respond.</p>
+        <div class="form-row">
+          <label>Defend using:</label>
+          <select data-action="overview:takeoverFundingSource">
+            <option value="active" ${takeoverDefendFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+            <option value="treasury" ${takeoverDefendFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="overview:defendTakeover" ${affordable ? "" : "disabled"}>Defend ${escapeHtml(targetD.name)} (${money(threat.defendCost)})</button>
+        </div>
+      </div>`;
+    })() : "";
 
     const groupCard = dealershipCount > 1 ? `
       <div class="card">
@@ -538,6 +564,7 @@ export const overviewTab: TabModule = {
           <div class="sub">A ${money(inv.assets)} = L ${money(inv.liabilities)} + E ${money(inv.equity)}</div>
         </div>
       </div>
+      ${takeoverCard}
       ${marketCard}
       ${groupCard}
       ${treasuryCard}
@@ -671,6 +698,13 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
       return true;
     }
+    if (action === "overview:defendTakeover") {
+      const threat = ctx.state.takeoverThreat;
+      const targetName = threat ? (ctx.state.dealerships[threat.targetDealershipId]?.name ?? "your store") : "your store";
+      const result = defendTakeover(ctx.state, takeoverDefendFunding, ctx.state.activeDealershipId);
+      pushToast(ctx.state, result.ok ? `You fought off the bid for ${targetName}.` : (result.reason ?? "Couldn't defend against that bid."), result.ok ? "good" : "warn");
+      return true;
+    }
     if (action === "overview:buildRooftop") {
       if (!buildBrand) return false;
       const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
@@ -714,6 +748,10 @@ export const overviewTab: TabModule = {
     }
     if (action === "overview:acquireMfgFundingSource" && target instanceof HTMLSelectElement) {
       acquireMfgFunding = target.value as ManufacturerAcquisitionFunding;
+      return true;
+    }
+    if (action === "overview:takeoverFundingSource" && target instanceof HTMLSelectElement) {
+      takeoverDefendFunding = target.value as TakeoverDefenseFunding;
       return true;
     }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {

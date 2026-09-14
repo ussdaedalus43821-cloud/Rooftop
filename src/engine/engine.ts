@@ -5,6 +5,7 @@ import { gmAutoManageFloorPlan, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
 import { economyDemandMultiplier, economyRateAdj, tickEconomyDaily } from "./economy.js";
+import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
 import { autoRunFi } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
 import { monthlyManufacturerCycle } from "./manufacturer.js";
@@ -14,7 +15,7 @@ import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.j
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
 import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment } from "./manufacturerAcquisition.js";
 import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
-import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
+import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle, applyStaffCareerCycle } from "./staffing.js";
 import {
   accruePayroll,
   payAccruedPayroll,
@@ -137,7 +138,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   }
 }
 
-function finalizeMonth(state: GameState, d: Dealership): number {
+function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   const overhead = OVERHEAD_MONTHLY;
   postCashExpense(d, overhead);
   d.currentMonth.overheadExpense = overhead;
@@ -180,6 +181,20 @@ function finalizeMonth(state: GameState, d: Dealership): number {
   if (!d.isHouseBrand && !d.factoryOwned) monthlyManufacturerCycle(d, state.day);
   const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
+
+  const careerEvents = applyStaffCareerCycle(d, rng);
+  for (const event of careerEvents) {
+    if (event.kind === "retired") {
+      pushToast(state, `${d.name}: ${event.member.name} retired after ${Math.floor(event.member.experienceDays / 365)} years with you.`, "info");
+    } else if (event.kind === "poached") {
+      pushToast(state, `${d.name}: ${event.member.name} was poached by a rival lot — morale had been slipping for a while.`, "bad");
+    } else if (event.kind === "promoted") {
+      pushToast(state, `${d.name}: ${event.member.name} was promoted to General Manager after working the floor for ${Math.floor(event.member.experienceDays / 365)} years.`, "good");
+    } else if (event.kind === "backfilled") {
+      pushToast(state, `${d.name}: your GM hired ${event.member.name} to fill an open seat.`, "good");
+    }
+  }
+
   const gmTrained = applyGmStaffManagement(d);
   for (const member of gmTrained) {
     pushToast(state, `${d.name}: your GM sent ${member.name} for training — skill improved.`, "good");
@@ -224,6 +239,17 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     pushToast(state, `Market update: ${econTick.eventStarted.headline} — ${econTick.eventStarted.description}`, good ? "good" : "warn");
   }
 
+  const takeoverTick = tickHostileTakeoverDaily(state, rng);
+  if (takeoverTick.started) {
+    const t = takeoverTick.started;
+    const targetName = state.dealerships[t.targetDealershipId]?.name ?? "a dealership";
+    const scopeText = t.scope === "group" ? "is making a play for your flagship store" : "is circling one of your weaker stores";
+    pushToast(state, `${t.rivalName} ${scopeText}, ${targetName} — defend it for $${Math.round(t.defendCost).toLocaleString()} or lose it to a forced sale in ${t.deadlineDay - t.startDay} days.`, "warn");
+  }
+  if (takeoverTick.lost) {
+    pushToast(state, `${takeoverTick.lost.rivalName} forced the sale of ${takeoverTick.lost.dealershipName} for $${Math.round(takeoverTick.lost.forcedPrice).toLocaleString()} — well below what it was worth.`, "bad");
+  }
+
   for (const id of Object.keys(state.dealerships)) {
     tickDealershipDay(state, state.dealerships[id], rng);
   }
@@ -232,7 +258,7 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     let groupUnitsRestocked = 0;
     for (const id of Object.keys(state.dealerships)) {
       const d = state.dealerships[id];
-      groupUnitsRestocked += finalizeMonth(state, d);
+      groupUnitsRestocked += finalizeMonth(state, d, rng);
       const justFinalized = d.monthlyHistory[d.monthlyHistory.length - 1];
       pushToast(
         state,

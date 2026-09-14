@@ -221,6 +221,7 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     acquiredManufacturer: null,
     manufacturerAcquisitionTargets: [],
     manufacturerAcquisitionTargetsMonth: -1,
+    takeoverThreat: null,
   };
 }
 

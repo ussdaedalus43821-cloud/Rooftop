@@ -78,6 +78,7 @@ function migrateState(state: GameState): GameState {
   if (state.acquiredManufacturer === undefined) state.acquiredManufacturer = null;
   if (!state.manufacturerAcquisitionTargets) state.manufacturerAcquisitionTargets = [];
   if (state.manufacturerAcquisitionTargetsMonth === undefined) state.manufacturerAcquisitionTargetsMonth = -1;
+  if (state.takeoverThreat === undefined) state.takeoverThreat = null;
   return state;
 }
 

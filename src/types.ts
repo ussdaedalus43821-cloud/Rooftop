@@ -405,6 +405,16 @@ export interface AcquiredManufacturerState {
   lifetimeProfit: number;
 }
 
+export interface TakeoverThreat {
+  scope: "dealership" | "group"; // dealership: targets your weakest store; group: targets your flagship (highest-value) store
+  targetDealershipId: string;
+  rivalName: string;
+  startDay: number;
+  deadlineDay: number;
+  forcedPrice: number; // what the rival pays if you let the deadline pass — a lowball forced sale
+  defendCost: number; // what fending them off costs
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -430,4 +440,5 @@ export interface GameState {
   acquiredManufacturer: AcquiredManufacturerState | null;
   manufacturerAcquisitionTargets: FranchiseKey[]; // real brands currently for sale outright, refreshed monthly
   manufacturerAcquisitionTargetsMonth: number;
+  takeoverThreat: TakeoverThreat | null;
 }
