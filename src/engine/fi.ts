@@ -47,8 +47,13 @@ export function buildFiMenu(vehicle: Vehicle): FiProductOffer[] {
   }));
 }
 
+// Pre-2013, dealer reserve markup was largely uncapped in practice. The
+// 2013 CFPB/Ally Financial settlement and the broad industry shift that
+// followed pushed most lenders toward a flat fee or a tight cap on dealer
+// participation — commonly around 200bps — instead of whatever markup a
+// buyer would tolerate. 300bps was the old, pre-regulatory ceiling here.
 export function setFinanceMarkup(deal: Deal, markupApr: number): void {
-  const clamped = Math.max(0, Math.min(0.03, markupApr));
+  const clamped = Math.max(0, Math.min(0.02, markupApr));
   deal.terms = buildTerms(
     deal.terms.price,
     deal.terms.tradeAllowance,
@@ -59,11 +64,16 @@ export function setFinanceMarkup(deal: Deal, markupApr: number): void {
   );
 }
 
+// The dealer's actual cut of the rate spread it marks up — also tightened
+// post-2013 as lenders moved to capped participation agreements rather
+// than passing through the full markup.
+const RESERVE_PARTICIPATION_RATE = 0.45;
+
 export function estimateFinanceReserve(deal: Deal): number {
   const amountFinanced = Math.max(0, deal.terms.price - deal.terms.tradeAllowance - deal.terms.downPayment);
   const spread = deal.terms.aprSellRate - deal.terms.aprBuyRate;
   const termYears = deal.terms.termMonths / 12;
-  return Math.max(0, amountFinanced * spread * termYears * 0.55);
+  return Math.max(0, amountFinanced * spread * termYears * RESERVE_PARTICIPATION_RATE);
 }
 
 function fiManagerSkill(d: Dealership, deal: Deal): number {
@@ -95,7 +105,7 @@ export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
   if (deal.fiProducts.length === 0) deal.fiProducts = buildFiMenu(vehicle);
 
   const skill = fiManagerSkill(d, deal);
-  const markup = clamp(0.005 + (skill / 100) * 0.02, 0, 0.03);
+  const markup = clamp(0.003 + (skill / 100) * 0.015, 0, 0.02);
   setFinanceMarkup(deal, markup);
 
   for (const product of deal.fiProducts) {

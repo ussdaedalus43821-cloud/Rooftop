@@ -104,22 +104,20 @@ export const overviewTab: TabModule = {
     const dealershipCount = Object.keys(ctx.state.dealerships).length;
 
     const econ = ctx.state.economy;
-    const mood = economyMoodLabel(ctx.state);
-    const moodClass = mood === "Strong" || mood === "Healthy" ? "text-good" : mood === "Weak" || mood === "Soft" ? "text-bad" : "";
+    const era = econ.currentEra;
+    const trend = economyMoodLabel(ctx.state);
+    const eraClass = era.demandMult >= 1.05 ? "text-good" : era.demandMult < 0.9 ? "text-bad" : "";
     const marketCard = `
       <div class="card">
         <h3>Market Conditions</h3>
-        <div class="big-number ${moodClass}">${mood}</div>
-        <div class="sub">Consumer sentiment index: ${econ.sentiment.toFixed(2)}× baseline demand</div>
-        ${econ.currentEvent ? `
-          <p style="margin:10px 0 0;"><strong>${escapeHtml(econ.currentEvent.headline)}</strong></p>
-          <p class="text-faint" style="font-size:11.5px;">${escapeHtml(econ.currentEvent.description)} Expected to run through day ${econ.currentEvent.endDay}.</p>
-        ` : `<p class="text-faint" style="font-size:11.5px;margin-top:10px;">No major market event active — demand and credit rates drift with the broader economy day to day.</p>`}
-        ${econ.eventLog.length > 0 ? `
+        <div class="big-number ${eraClass}">${escapeHtml(era.headline)}</div>
+        <p class="text-faint" style="font-size:11.5px;margin:6px 0 0;">${escapeHtml(era.description)}</p>
+        <div class="sub" style="margin-top:8px;">Sentiment trending: ${trend} (${econ.sentiment.toFixed(2)}×) · this era runs through day ${era.endDay}</div>
+        ${econ.eraLog.length > 0 ? `
           <details style="margin-top:8px;">
-            <summary style="cursor:pointer;font-size:11.5px;color:var(--text-faint);">Recent market history</summary>
+            <summary style="cursor:pointer;font-size:11.5px;color:var(--text-faint);">Economic history this game</summary>
             <table><tbody>
-              ${econ.eventLog.slice().reverse().map((e) => `<tr><td class="text-faint" style="font-size:11px;">Day ${e.day}</td><td style="font-size:11.5px;">${escapeHtml(e.headline)}</td></tr>`).join("")}
+              ${econ.eraLog.slice().reverse().map((e) => `<tr><td class="text-faint" style="font-size:11px;">Day ${e.day}</td><td style="font-size:11.5px;">${escapeHtml(e.headline)}</td></tr>`).join("")}
             </tbody></table>
           </details>
         ` : ""}

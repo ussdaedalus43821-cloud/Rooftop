@@ -84,7 +84,12 @@ function migrateState(state: GameState): GameState {
   if (!state.captiveLender) state.captiveLender = newCaptiveLender();
   if (!state.partsWarehouse) state.partsWarehouse = newPartsWarehouse();
   if (!state.manufacturerCo) state.manufacturerCo = newManufacturerCo();
-  if (!state.economy) state.economy = newEconomyState();
+  // The economy engine moved from a nullable random-event pool to always
+  // having a current named era (see engine/economy.ts) — an old save's
+  // shape is incompatible, so it just gets a fresh economy state rather
+  // than trying to translate the old fields. Nothing else in the save is
+  // affected.
+  if (!state.economy || !(state.economy as { currentEra?: unknown }).currentEra) state.economy = newEconomyState();
   if (state.acquiredManufacturer === undefined) state.acquiredManufacturer = null;
   if (!state.manufacturerAcquisitionTargets) state.manufacturerAcquisitionTargets = [];
   if (state.manufacturerAcquisitionTargetsMonth === undefined) state.manufacturerAcquisitionTargetsMonth = -1;

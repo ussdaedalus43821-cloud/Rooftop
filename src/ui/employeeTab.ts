@@ -94,7 +94,7 @@ export const employeeTab: TabModule = {
           ${hireRow("fi_manager")}
           ${hireRow("service_advisor")}
           ${hireRow("service_tech")}
-          ${hireRow("gm", !canHireGm, hasGm ? "Already staffed — one GM per store." : ctx.state.career.role === "gm" ? "You're running this store yourself as GM." : "Actually runs the place: clears floor-plan curtailment before it becomes a violation every day, sends your weakest staff to training every month, and earns a cut of net income for it.")}
+          ${hireRow("gm", !canHireGm, hasGm ? "Already staffed — one GM per store." : ctx.state.career.role === "gm" ? "You're running this store yourself as GM." : "Actually runs the place: sends your weakest staff to training every month, hands out earned raises, backfills a vacated seat, and earns a cut of net income for it. (Floor-plan curtailment now gets paid automatically either way — that's basic bookkeeping, not a GM-only perk.)")}
         </div>
       </div>`;
 
@@ -106,7 +106,7 @@ export const employeeTab: TabModule = {
           <tr><td>Top F&amp;I Manager</td><td>Same idea — an extra 4% of the month's best F&amp;I gross.</td></tr>
           <tr><td>Aged-Unit Clearance</td><td>Selling a vehicle that's sat 45+ days pays the closing rep a spiff on the spot — up to $1,500 the longer it sat — instead of just leaving it to bleed floor-plan interest.</td></tr>
           <tr><td>Service Pool</td><td>Techs and advisors aren't tracked deal-by-deal, so 3% of the department's combined gross is split across them by skill each month.</td></tr>
-          <tr><td>General Manager</td><td>Automatically clears due floor-plan curtailment every day and sends your two weakest staff to training every month, then earns 2% of the store's own net income for the month, whenever it's positive.</td></tr>
+          <tr><td>General Manager</td><td>Sends your two weakest staff to training every month and backfills a vacated seat, then earns 2% of the store's own net income for the month, whenever it's positive. (Floor-plan curtailment is auto-paid for every store regardless of GM, not a GM-exclusive perk.)</td></tr>
           <tr><td>Merit Raises</td><td>Earning any incentive above three months running is a proven track record, not a hot streak — your GM gives them a permanent +8% base-salary raise automatically (up to 5 lifetime). You can also give someone a raise yourself anytime, as a proactive retention play — same cap either way.</td></tr>
         </tbody></table>
       </div>`;

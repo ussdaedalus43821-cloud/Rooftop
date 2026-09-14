@@ -378,20 +378,26 @@ export interface ManufacturerCoState {
   lifetimeProfit: number;
 }
 
-export interface EconomicEvent {
-  key: string;
+// Named economic eras the game cycles through, calibrated against real
+// U.S. auto-industry and macro history (see engine/economy.ts for the
+// per-regime sourcing) rather than an independent random-event grab bag.
+export type EconomicRegime = "expansion" | "lateCycleBoom" | "creditShock" | "recession" | "recovery" | "supplyShock" | "rateShock";
+
+export interface EconomicEra {
+  regime: EconomicRegime;
   headline: string;
   description: string;
   startDay: number;
   endDay: number;
   demandMult: number; // multiplies walk-in traffic on top of sentiment
-  rateAdj: number; // added to every customer's credit buy-rate APR this event
+  rateAdj: number; // added to every customer's credit buy-rate APR this era
+  priceToleranceMult: number; // >1 during a scarcity/seller's-market era — customers tolerate paying further above their own target price
 }
 
 export interface EconomyState {
-  sentiment: number; // 0.55-1.45, a slow mean-reverting macro backdrop that's always drifting a little
-  currentEvent: EconomicEvent | null;
-  eventLog: { day: number; headline: string }[]; // recent history for a player-facing feed
+  sentiment: number; // 0.85-1.15, a slow mean-reverting drift layered on top of whatever era is live
+  currentEra: EconomicEra; // always set — the economy is always somewhere in its cycle, never "nothing happening"
+  eraLog: { day: number; headline: string }[]; // recent history for a player-facing feed
 }
 
 export interface AcquiredManufacturerState {

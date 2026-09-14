@@ -48,7 +48,7 @@ function randomModelClass(d: Dealership, rng: Rng): VehicleClass {
   return rng.pick(lot).model.class;
 }
 
-export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: number = 0): Customer {
+export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1): Customer {
   const credit = creditProfile(rng, rateAdj);
   const hasTrade = rng.chance(0.45);
   const name = `${rng.pick(CUSTOMER_FIRST_NAMES)} ${rng.pick(CUSTOMER_LAST_NAMES)}`;
@@ -75,7 +75,12 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: 
       : undefined,
     interestedModelClass: randomModelClass(d, rng),
     patience: rng.int(2, 4),
-    priceFlexibility: rng.range(0.03, 0.14),
+    // Tightened from the original 3-14% band — real negotiating room is
+    // modest, so skill has to do more of the actual work. priceToleranceMult
+    // widens this during a genuine seller's market (see economy.ts's
+    // supplyShock era, modeled on the 2021-2022 chip shortage), when buyers
+    // really did pay at or above sticker with little room to haggle.
+    priceFlexibility: rng.range(0.02, 0.11) * priceToleranceMult,
   };
 }
 
@@ -123,14 +128,14 @@ function vehiclesInActiveDeals(d: Dealership): Set<string> {
   return ids;
 }
 
-export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: number = 0): Deal | null {
+export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1): Deal | null {
   const reserved = vehiclesInActiveDeals(d);
   const lot = unitsOnLot(d).filter((v) => !reserved.has(v.id));
   if (lot.length === 0) return null;
   const rep = leastBusySalesperson(d);
   if (!rep) return null;
 
-  const customer = generateCustomer(d, day, rng, rateAdj);
+  const customer = generateCustomer(d, day, rng, rateAdj, priceToleranceMult);
   const matches = lot.filter((v) => v.model.class === customer.interestedModelClass);
   const vehicle = matches.length > 0 ? rng.pick(matches) : rng.pick(lot);
 
@@ -226,7 +231,11 @@ function counterTerms(deal: Deal, vehicle: Vehicle, customer: Customer): FourSqu
 export function autoNegotiateDeal(d: Dealership, deal: Deal, vehicle: Vehicle, rng: Rng): OfferOutcome | null {
   const rep = d.staff.find((s) => s.id === deal.salespersonId);
   const skill = clamp(rep ? rep.skill : 40, 0, 100);
-  const aggressiveness = clamp(0.35 + (skill / 100) * 0.55, 0.35, 0.9);
+  // Tightened ceiling — even an elite rep now leaves a bit more on the
+  // table (tops out around 75% of the way to the customer's true ceiling
+  // instead of 90%), so skill still matters but doesn't erase the
+  // customer's own negotiating room entirely.
+  const aggressiveness = clamp(0.3 + (skill / 100) * 0.45, 0.3, 0.75);
 
   const target = customerTargetPrice(deal.customer, vehicle);
   const ceiling = target * (1 + deal.customer.priceFlexibility);

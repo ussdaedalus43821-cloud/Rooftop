@@ -1,10 +1,10 @@
 import type { Dealership, GameState } from "../types.js";
 import { Rng } from "../rng.js";
 import { isNewMonth, monthLabel } from "./clock.js";
-import { gmAutoManageFloorPlan, inventoryBookValue, lotCapacity, tickInventoryDaily } from "./inventory.js";
+import { autoManageFloorPlan, inventoryBookValue, lotCapacity, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
-import { economyDemandMultiplier, economyRateAdj, tickEconomyDaily } from "./economy.js";
+import { economyDemandMultiplier, economyPriceToleranceMult, economyRateAdj, tickEconomyDaily } from "./economy.js";
 import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
 import { autoRunFi, MAX_FI_DEALS_PER_MANAGER_PER_DAY } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
@@ -70,9 +70,9 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   generateDailyServiceJobs(d, state.day, rng);
   processServiceJobs(d, state.day, rng);
 
-  const gmCurtailmentPaid = gmAutoManageFloorPlan(d);
-  if (gmCurtailmentPaid > 0) {
-    pushToast(state, `${d.name}: your GM cleared $${Math.round(gmCurtailmentPaid).toLocaleString()} in floor-plan curtailment before it became a problem.`, "good");
+  const curtailmentPaid = autoManageFloorPlan(d);
+  if (curtailmentPaid > 0) {
+    pushToast(state, `${d.name}: cleared $${Math.round(curtailmentPaid).toLocaleString()} in floor-plan curtailment before it became a problem.`, "good");
   }
 
   if (d.autoPilot.auction) {
@@ -104,7 +104,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
 
   const ups = dailyUpCount(d, rng, economyDemandMultiplier(state));
   for (let i = 0; i < ups; i++) {
-    tryCreateUp(d, state.day, rng, economyRateAdj(state));
+    tryCreateUp(d, state.day, rng, economyRateAdj(state), economyPriceToleranceMult(state));
   }
 
   if (d.autoPilot.sales) {
@@ -288,12 +288,10 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
   state.day += 1;
 
   const econTick = tickEconomyDaily(state, rng);
-  if (econTick.eventEndedHeadline) {
-    pushToast(state, `Market update: "${econTick.eventEndedHeadline}" has run its course — conditions are normalizing.`, "info");
-  }
-  if (econTick.eventStarted) {
-    const good = econTick.eventStarted.demandMult >= 1 && econTick.eventStarted.rateAdj <= 0;
-    pushToast(state, `Market update: ${econTick.eventStarted.headline} — ${econTick.eventStarted.description}`, good ? "good" : "warn");
+  if (econTick.eraChanged) {
+    const era = econTick.eraChanged;
+    const good = era.demandMult >= 1 && era.rateAdj <= 0;
+    pushToast(state, `Market update: ${era.headline} — ${era.description}`, good ? "good" : "warn");
   }
 
   const takeoverTick = tickHostileTakeoverDaily(state, rng);
