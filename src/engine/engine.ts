@@ -1,7 +1,7 @@
 import type { Dealership, GameState } from "../types.js";
 import { Rng } from "../rng.js";
 import { isNewMonth, monthLabel } from "./clock.js";
-import { gmAutoManageFloorPlan, tickInventoryDaily } from "./inventory.js";
+import { gmAutoManageFloorPlan, inventoryBookValue, lotCapacity, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
 import { economyDemandMultiplier, economyRateAdj, tickEconomyDaily } from "./economy.js";
@@ -22,7 +22,17 @@ import {
   payFloorPlanInterest,
   postCashExpense,
 } from "./financials.js";
-import { OVERHEAD_MONTHLY } from "../constants.js";
+import {
+  FACILITY_ASSESSED_VALUE_PER_POINT,
+  GENERAL_ADMIN_MONTHLY,
+  INCOME_TAX_RATE,
+  OCCUPANCY_BASE_MONTHLY,
+  OCCUPANCY_PER_FACILITY_POINT,
+  PROPERTY_TAX_ANNUAL_RATE,
+  UTILITIES_BASE_MONTHLY,
+  UTILITIES_PER_BAY_MONTHLY,
+  UTILITIES_PER_LOT_CAPACITY_UNIT,
+} from "../constants.js";
 
 const MAX_TOASTS = 30;
 const STALE_NEGOTIATION_DAYS = 3;
@@ -150,29 +160,58 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
 }
 
 function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
-  const overhead = OVERHEAD_MONTHLY;
-  postCashExpense(d, overhead);
-  d.currentMonth.overheadExpense = overhead;
+  // Real, separately-scaling operating costs instead of one flat
+  // "overhead" number — occupancy and utilities grow with how built-out
+  // the facility is (the same facilityStandards stat that already drives
+  // lot capacity and sales-floor headcount), and property tax is a genuine
+  // ad-valorem levy on assessed real estate + inventory value. None of
+  // this moved with the store's own size or success before.
+  const generalAdmin = GENERAL_ADMIN_MONTHLY;
+  const occupancy = OCCUPANCY_BASE_MONTHLY + d.manufacturer.facilityStandards * OCCUPANCY_PER_FACILITY_POINT;
+  const assessedValue = inventoryBookValue(d) + d.manufacturer.facilityStandards * FACILITY_ASSESSED_VALUE_PER_POINT;
+  const propertyTax = (assessedValue * PROPERTY_TAX_ANNUAL_RATE) / 12;
+  const utilities = UTILITIES_BASE_MONTHLY + d.service.bays * UTILITIES_PER_BAY_MONTHLY + lotCapacity(d) * UTILITIES_PER_LOT_CAPACITY_UNIT;
+  postCashExpense(d, generalAdmin);
+  postCashExpense(d, occupancy);
+  postCashExpense(d, propertyTax);
+  postCashExpense(d, utilities);
+  d.currentMonth.overheadExpense = generalAdmin;
+  d.currentMonth.occupancyExpense = occupancy;
+  d.currentMonth.propertyTaxExpense = propertyTax;
+  d.currentMonth.utilitiesExpense = utilities;
 
   payAccruedPayroll(d);
   payFloorPlanInterest(d);
 
   d.currentMonth.totalGrossProfit =
     d.currentMonth.frontEndGross + d.currentMonth.fiGross + d.currentMonth.serviceGross + d.currentMonth.partsGross;
-  const preIncentiveNetIncome =
+  const preTaxPreIncentiveNetIncome =
     d.currentMonth.totalGrossProfit -
     d.currentMonth.payrollExpense -
     d.currentMonth.floorPlanInterestExpense -
     d.currentMonth.overheadExpense -
+    d.currentMonth.occupancyExpense -
+    d.currentMonth.propertyTaxExpense -
+    d.currentMonth.utilitiesExpense -
     d.currentMonth.curtailmentPenalties -
     d.currentMonth.incentiveExpense; // aged-unit spiffs, already paid out during the month
 
   // Top-performer, service-pool, and GM bonuses are read from this month's
   // deal/gross counters, so this must run before applyMonthlyStaffCycle
   // resets them — and before netIncome is finalized, so the payout counts.
-  const incentives = applyMonthlyIncentives(d, preIncentiveNetIncome);
+  // Bonuses are based on pretax performance, same as real store-level
+  // incentive plans — income tax is a whole-entity concern, applied after.
+  const incentives = applyMonthlyIncentives(d, preTaxPreIncentiveNetIncome);
   d.currentMonth.incentiveExpense += incentives.total;
-  d.currentMonth.netIncome = preIncentiveNetIncome - incentives.total;
+  const preTaxNetIncome = preTaxPreIncentiveNetIncome - incentives.total;
+
+  // The single biggest thing missing before: every dollar of profit went
+  // straight to the owner, tax-free. A real business pays income tax on
+  // what it actually earns.
+  const incomeTax = preTaxNetIncome > 0 ? preTaxNetIncome * INCOME_TAX_RATE : 0;
+  if (incomeTax > 0) postCashExpense(d, incomeTax);
+  d.currentMonth.incomeTaxExpense = incomeTax;
+  d.currentMonth.netIncome = preTaxNetIncome - incomeTax;
   d.currentMonth.csiAvgScore = d.manufacturer.csi;
   // incentivesThisMonth gets reset per-staff below (new month starting), so
   // this toast is the only place these payouts are ever visible to the player.
@@ -230,6 +269,10 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     payrollExpense: 0,
     floorPlanInterestExpense: 0,
     overheadExpense: 0,
+    occupancyExpense: 0,
+    propertyTaxExpense: 0,
+    utilitiesExpense: 0,
+    incomeTaxExpense: 0,
     curtailmentPenalties: 0,
     incentiveExpense: 0,
     netIncome: 0,

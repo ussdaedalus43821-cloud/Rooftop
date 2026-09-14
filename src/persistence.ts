@@ -44,8 +44,16 @@ function migrateState(state: GameState): GameState {
     if (d.auctionLotsDay === undefined) d.auctionLotsDay = -1;
     if (!d.modelStats) d.modelStats = {};
     if (d.currentMonth.incentiveExpense === undefined) d.currentMonth.incentiveExpense = 0;
+    if (d.currentMonth.occupancyExpense === undefined) d.currentMonth.occupancyExpense = 0;
+    if (d.currentMonth.propertyTaxExpense === undefined) d.currentMonth.propertyTaxExpense = 0;
+    if (d.currentMonth.utilitiesExpense === undefined) d.currentMonth.utilitiesExpense = 0;
+    if (d.currentMonth.incomeTaxExpense === undefined) d.currentMonth.incomeTaxExpense = 0;
     for (const m of d.monthlyHistory) {
       if (m.incentiveExpense === undefined) m.incentiveExpense = 0;
+      if (m.occupancyExpense === undefined) m.occupancyExpense = 0;
+      if (m.propertyTaxExpense === undefined) m.propertyTaxExpense = 0;
+      if (m.utilitiesExpense === undefined) m.utilitiesExpense = 0;
+      if (m.incomeTaxExpense === undefined) m.incomeTaxExpense = 0;
     }
     for (const s of d.staff) {
       if (s.incentivesThisMonth === undefined) s.incentivesThisMonth = 0;

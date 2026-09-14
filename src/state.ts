@@ -10,7 +10,6 @@ import {
   CURTAILMENT_THRESHOLD_DAYS,
   FLOORPLAN_DAILY_RATE,
   getFranchiseOption,
-  OVERHEAD_MONTHLY,
   STAFF_FIRST_NAMES,
   STAFF_LAST_NAMES,
 } from "./constants.js";
@@ -47,6 +46,10 @@ function emptyMonth(label: string): MonthlyFinancials {
     payrollExpense: 0,
     floorPlanInterestExpense: 0,
     overheadExpense: 0,
+    occupancyExpense: 0,
+    propertyTaxExpense: 0,
+    utilitiesExpense: 0,
+    incomeTaxExpense: 0,
     curtailmentPenalties: 0,
     incentiveExpense: 0,
     netIncome: 0,
@@ -226,5 +229,3 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     takeoverThreat: null,
   };
 }
-
-export const OVERHEAD_MONTHLY_DEFAULT = OVERHEAD_MONTHLY;

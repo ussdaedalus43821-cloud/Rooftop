@@ -651,4 +651,24 @@ export const CUSTOMER_LAST_NAMES = ["Nguyen", "Smith", "Garcia", "Johnson", "Bro
 export const STAFF_FIRST_NAMES = ["Alex", "Jordan", "Taylor", "Casey", "Morgan", "Riley", "Jamie", "Cameron", "Drew", "Sam"];
 export const STAFF_LAST_NAMES = ["Reyes", "Coleman", "Patel", "Nguyen", "Okafor", "Fischer", "Rossi", "Novak", "Bianchi", "Suarez"];
 
-export const OVERHEAD_MONTHLY = 38_000; // rent, utilities, insurance, admin
+// A single flat "overhead" number used to stand in for everything a real
+// dealership actually pays for — rent, utilities, property tax, income
+// tax — none of which moved with how big or successful the store actually
+// was. Broken out into real, separately-scaling line items instead: a
+// modest flat G&A baseline every store carries, occupancy and utilities
+// that grow with how built-out the facility is, a genuine ad-valorem
+// property tax on assessed value, and — the biggest miss — income tax on
+// actual profit, which nothing here ever paid before.
+export const GENERAL_ADMIN_MONTHLY = 8_000; // phone/internet, office admin, licensing & bonding
+
+export const OCCUPANCY_BASE_MONTHLY = 9_000;
+export const OCCUPANCY_PER_FACILITY_POINT = 180; // rent/mortgage scales with facilityStandards (0-100) — the same build-out stat that already drives lot capacity and sales-floor headcount
+
+export const PROPERTY_TAX_ANNUAL_RATE = 0.014; // ~1.4%/yr of assessed value — a realistic blended real-estate tax rate
+export const FACILITY_ASSESSED_VALUE_PER_POINT = 15_000; // rough building/improvements value backing the assessment, on top of vehicle inventory actually on hand
+
+export const UTILITIES_BASE_MONTHLY = 2_500;
+export const UTILITIES_PER_BAY_MONTHLY = 900; // service bays draw real power, water, and gas
+export const UTILITIES_PER_LOT_CAPACITY_UNIT = 40; // a bigger lot needs more lighting and climate control
+
+export const INCOME_TAX_RATE = 0.26; // a realistic blended effective federal + state rate on positive net income

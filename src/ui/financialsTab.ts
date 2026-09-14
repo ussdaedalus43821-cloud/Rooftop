@@ -67,13 +67,14 @@ export const financialsTab: TabModule = {
     const plTable = `
       <div class="card">
         <h3>Monthly P&amp;L (most recent first)</h3>
+        <p class="text-faint" style="font-size:11px;">G&amp;A, Occupancy, Property Tax, and Utilities replaced a single flat "overhead" number — occupancy and utilities grow with facility investment, property tax with assessed value. Income Tax (26% of positive pretax income) is the newest line: it never existed before.</p>
         <div class="table-wrap"><table>
           <thead><tr>
             <th>Month</th><th class="num">Front-End</th><th class="num">F&amp;I</th><th class="num">Service</th><th class="num">Parts</th>
-            <th class="num">Payroll</th><th class="num">FP Interest</th><th class="num">Overhead</th><th class="num">Bonuses</th><th class="num">Net Income</th><th class="num">Units</th>
+            <th class="num">Payroll</th><th class="num">FP Interest</th><th class="num">G&amp;A</th><th class="num">Occupancy</th><th class="num">Property Tax</th><th class="num">Utilities</th><th class="num">Bonuses</th><th class="num">Income Tax</th><th class="num">Net Income</th><th class="num">Units</th>
           </tr></thead>
           <tbody>
-            ${history.length === 0 ? '<tr><td colspan="11" class="list-empty">No completed months yet.</td></tr>' : history.map((m) => `<tr>
+            ${history.length === 0 ? '<tr><td colspan="15" class="list-empty">No completed months yet.</td></tr>' : history.map((m) => `<tr>
               <td>${m.monthLabel}</td>
               <td class="num">${money(m.frontEndGross)}</td>
               <td class="num">${money(m.fiGross)}</td>
@@ -82,7 +83,11 @@ export const financialsTab: TabModule = {
               <td class="num">${money(m.payrollExpense)}</td>
               <td class="num">${money(m.floorPlanInterestExpense)}</td>
               <td class="num">${money(m.overheadExpense)}</td>
+              <td class="num">${money(m.occupancyExpense)}</td>
+              <td class="num">${money(m.propertyTaxExpense)}</td>
+              <td class="num">${money(m.utilitiesExpense)}</td>
               <td class="num">${money(m.incentiveExpense)}</td>
+              <td class="num">${money(m.incomeTaxExpense)}</td>
               <td class="num ${m.netIncome >= 0 ? "text-good" : "text-bad"}"><strong>${money(m.netIncome)}</strong></td>
               <td class="num">${m.unitsSoldNew + m.unitsSoldUsed}</td>
             </tr>`).join("")}

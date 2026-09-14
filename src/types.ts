@@ -250,7 +250,11 @@ export interface MonthlyFinancials {
   totalGrossProfit: number;
   payrollExpense: number;
   floorPlanInterestExpense: number;
-  overheadExpense: number;
+  overheadExpense: number; // general & admin: phone/internet, office admin, licensing & bonding — a modest flat baseline
+  occupancyExpense: number; // rent/mortgage, scales with facility build-out
+  propertyTaxExpense: number; // ad-valorem tax on assessed real estate + inventory value
+  utilitiesExpense: number; // electric, gas, water — scales with service bays and lot size
+  incomeTaxExpense: number; // blended federal + state tax on positive net income
   curtailmentPenalties: number;
   incentiveExpense: number; // performance bonuses paid to staff (top-performer, aged-unit clearance, department pool, GM)
   netIncome: number;
