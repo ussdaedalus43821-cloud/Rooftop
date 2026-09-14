@@ -86,14 +86,16 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: 
 
 export function customerTargetPrice(customer: Customer, vehicle: Vehicle): number {
   if (vehicle.condition === "new") {
-    // A savvy shopper expects to land somewhere between invoice and
-    // sticker, not literally at dealer cost — split the markup band down
-    // the middle so a normal front-end profit doesn't read as gouging.
-    return vehicle.model.invoice + (vehicle.model.msrp - vehicle.model.invoice) * 0.5;
+    // Real new-car front-end gross has compressed hard since price
+    // transparency went mainstream in the 2010s (TrueCar, Edmunds,
+    // CarGurus) — a shopper walks in already knowing roughly what invoice
+    // is, and expects to land close to it, not halfway to sticker.
+    return vehicle.model.invoice + (vehicle.model.msrp - vehicle.model.invoice) * 0.25;
   }
-  // Used cars carry a real recon + margin expectation, not a razor-thin
-  // 4% over cost.
-  return (vehicle.acquisitionCost + vehicle.reconCost) * 1.12;
+  // Same story for used, via CarMax/Carvana-style no-haggle comp-shopping
+  // that trained buyers to expect a tight, known markup over cost instead
+  // of a real negotiation.
+  return (vehicle.acquisitionCost + vehicle.reconCost) * 1.08;
 }
 
 function leastBusySalesperson(d: Dealership): StaffMember | null {
