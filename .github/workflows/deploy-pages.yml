@@ -39,6 +39,9 @@ jobs:
           cp -r styles _site/
           cp -r dist _site/
 
+      - name: Cache-bust static assets
+        run: node scripts/cachebust.mjs _site "${GITHUB_SHA::8}"
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
