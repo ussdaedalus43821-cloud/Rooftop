@@ -14,6 +14,7 @@ import { currentLotUsage, getCurtailmentDue, lotCapacity, payOffHeldUnit, payVeh
 import { pushToast } from "../engine/engine.js";
 import { getFranchiseOption } from "../constants.js";
 import { liveHouseBrandCatalog, recordHouseBrandShipment } from "../engine/manufacturerCo.js";
+import { recordAcquiredBrandShipment } from "../engine/manufacturerAcquisition.js";
 
 interface PerfRow {
   key: string;
@@ -241,6 +242,7 @@ export const inventoryTab: TabModule = {
       if (!model) return false;
       const v = orderAllocationUnit(d, model, ctx.state.day, ctx.rng);
       if (v && d.isHouseBrand) recordHouseBrandShipment(ctx.state, model);
+      if (v && d.factoryOwned) recordAcquiredBrandShipment(ctx.state, model);
       const reason = currentLotUsage(d) >= lotCapacity(d) ? "The lot is full — nowhere to put it." : "No allocation remaining this month.";
       pushToast(ctx.state, v ? `Ordered a ${model.name} ${model.trim} from the factory.` : reason, v ? "good" : "warn");
       return true;

@@ -261,8 +261,8 @@ export function foundManufacturerCo(state: GameState, funding: ManufacturerCoFun
   return { ok: true };
 }
 
-/** Applies the shared house-brand overrides to a dealership — no tier/quota grind, always has a new-inventory source, carries the current brand name. Used by both founding a new store and converting an existing one. */
-function applyHouseBrandRelations(state: GameState, d: Dealership): void {
+/** Applies the shared house-brand overrides to a dealership — no tier/quota grind, always has a new-inventory source, carries the current brand name. Used by both founding a new store and converting an existing one (and, via engine/manufacturerAcquisition.ts, folding an acquired real brand's dealerships into this one). */
+export function applyHouseBrandRelations(state: GameState, d: Dealership): void {
   d.isHouseBrand = true;
   d.brand = state.manufacturerCo.brandName;
   d.isUsedOnly = false;
@@ -313,7 +313,7 @@ export function houseBrandConversionCost(): number {
 }
 
 /** Drops the old brand's name out of a dealership's name and appends the new one — "Meridian Point Toyota" + "Meridian Motors" -> "Meridian Point Meridian Motors" — rather than leaving a competitor's brand baked into a store that no longer carries it. */
-function rebrandDealershipName(name: string, oldBrand: string, newBrand: string): string {
+export function rebrandDealershipName(name: string, oldBrand: string, newBrand: string): string {
   const stripped = oldBrand ? name.split(oldBrand).join(" ").replace(/\s{2,}/g, " ").trim() : name.trim();
   return stripped.length > 0 ? `${stripped} ${newBrand}` : `${newBrand} of ${name.trim()}`;
 }
@@ -412,7 +412,7 @@ export function recordHouseBrandShipment(state: GameState, model: VehicleModel):
 }
 
 /** Splits current production capacity evenly across every house-brand dealership right now — called both by the monthly cycle and immediately whenever a store newly joins the network, so a fresh store isn't stuck at zero allocation for up to a month waiting for the next cycle. */
-function redistributeManufacturerCapacity(state: GameState): void {
+export function redistributeManufacturerCapacity(state: GameState): void {
   const mc = state.manufacturerCo;
   const houseBrandDealers = Object.values(state.dealerships).filter((d) => d.isHouseBrand);
   const perStoreCap = houseBrandDealers.length > 0 ? Math.floor(mc.productionCapacity / houseBrandDealers.length) : 0;

@@ -16,23 +16,27 @@ export const manufacturerTab: TabModule = {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];
     const m = d.manufacturer;
 
-    if (d.isHouseBrand) {
+    if (d.isHouseBrand || d.factoryOwned) {
       const mc = ctx.state.manufacturerCo;
+      const label = d.isHouseBrand ? mc.brandName : d.brand;
+      const noteCard = d.isHouseBrand
+        ? `<p>This store sells nothing but your own ${escapeHtml(label)} lineup — no franchise agreement, no tier to climb, no quota to fail. Manage brand reputation, production cost, and factory capacity from the Manufacturing Co. card on Overview.</p>`
+        : `<p>You bought ${escapeHtml(label)}'s manufacturing outright and kept it running as its own brand — no termination risk, no compliance grind. Manage its production stats from the Acquired Manufacturer card on Overview.</p>`;
       return `
         <div class="card">
-          <h3>${escapeHtml(mc.brandName)} — House Brand</h3>
-          <p>This store sells nothing but your own ${escapeHtml(mc.brandName)} lineup — no franchise agreement, no tier to climb, no quota to fail. Manage brand reputation, production cost, and factory capacity from the Manufacturing Co. card on Overview.</p>
+          <h3>${escapeHtml(label)} — ${d.isHouseBrand ? "House Brand" : "Factory-Owned"}</h3>
+          ${noteCard}
         </div>
         <div class="grid grid-cols-4">
           <div class="card">
-            <h3>Factory Allocation</h3>
+            <h3>${d.isHouseBrand ? "Factory Allocation" : "Allocation Cap"}</h3>
             <div class="big-number">${m.allocationCapMonthly}/mo</div>
-            <div class="sub">Shared across every ${escapeHtml(mc.brandName)} store you run</div>
+            <div class="sub">${d.isHouseBrand ? `Shared across every ${escapeHtml(mc.brandName)} store you run` : "Permanently boosted by owning the factory"}</div>
           </div>
           <div class="card">
-            <h3>Brand Reputation</h3>
-            <div class="big-number">${Math.round(mc.reputation)}<span style="font-size:14px;color:var(--text-faint)">/100</span></div>
-            <div class="meter" style="margin-top:8px;"><div style="width:${mc.reputation}%"></div></div>
+            <h3>${d.isHouseBrand ? "Brand Reputation" : "Store Reputation"}</h3>
+            <div class="big-number">${Math.round(d.isHouseBrand ? mc.reputation : d.reputation)}<span style="font-size:14px;color:var(--text-faint)">/100</span></div>
+            <div class="meter" style="margin-top:8px;"><div style="width:${d.isHouseBrand ? mc.reputation : d.reputation}%"></div></div>
           </div>
           <div class="card">
             <h3>CSI Score</h3>

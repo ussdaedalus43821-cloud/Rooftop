@@ -12,6 +12,7 @@ import { monthlyCareerCycle } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
+import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment } from "./manufacturerAcquisition.js";
 import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
 import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle } from "./staffing.js";
 import {
@@ -78,6 +79,9 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
     if (ordered.length > 0) {
       if (d.isHouseBrand) {
         for (const v of ordered) recordHouseBrandShipment(state, v.model);
+      }
+      if (d.factoryOwned) {
+        for (const v of ordered) recordAcquiredBrandShipment(state, v.model);
       }
       if (ordered.length === 1) {
         pushToast(state, `Auto-ordered a ${ordered[0].model.name} ${ordered[0].model.trim} from the factory.`, "good");
@@ -169,8 +173,11 @@ function finalizeMonth(state: GameState, d: Dealership): number {
 
   // A house-brand dealership can't be terminated by itself, so it skips the
   // whole real-franchise tier/quota/compliance grind entirely — its
-  // allocation cap instead comes from monthlyManufacturerCoCycle below.
-  if (!d.isHouseBrand) monthlyManufacturerCycle(d, state.day);
+  // allocation cap instead comes from monthlyManufacturerCoCycle below. A
+  // factory-owned dealership (the player bought this franchise's real
+  // manufacturing outright and kept it independent) skips it for the same
+  // reason — you can't be terminated by your own factory either.
+  if (!d.isHouseBrand && !d.factoryOwned) monthlyManufacturerCycle(d, state.day);
   const unitsRestocked = monthlyServiceCycle(d, partsUnitCostFor(state));
   applyMonthlyStaffCycle(d);
   const gmTrained = applyGmStaffManagement(d);
@@ -260,6 +267,12 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     monthlyManufacturerCoCycle(state);
     if (state.manufacturerCo.founded && state.manufacturerCo.lastMonthProfit > 0) {
       pushToast(state, `${state.manufacturerCo.brandName}: shipped ${state.manufacturerCo.lastMonthUnitsShipped} unit${state.manufacturerCo.lastMonthUnitsShipped === 1 ? "" : "s"} to your dealerships, earning $${Math.round(state.manufacturerCo.lastMonthProfit).toLocaleString()} in manufacturing profit.`, "good");
+    }
+
+    monthlyAcquiredManufacturerCycle(state);
+    const am = state.acquiredManufacturer;
+    if (am?.owned && !am.mergedIntoOwnBrand && am.lastMonthProfit > 0) {
+      pushToast(state, `${am.brand}: your factory shipped ${am.lastMonthUnitsShipped} unit${am.lastMonthUnitsShipped === 1 ? "" : "s"}, earning $${Math.round(am.lastMonthProfit).toLocaleString()} in manufacturing profit.`, "good");
     }
   }
 

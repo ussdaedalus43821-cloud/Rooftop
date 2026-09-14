@@ -5,6 +5,7 @@ import { monthIndex } from "./clock.js";
 import { postCashExpense, financeAcquisition, totalAssets, totalLiabilities, distributeToOwner, injectCapital } from "./financials.js";
 import { makeVehicle } from "./acquisition.js";
 import { BASE_SALARY } from "./staffing.js";
+import { applyFactoryOwnership } from "./manufacturerAcquisition.js";
 import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS, FRANCHISE_OPTIONS, STAFF_FIRST_NAMES, STAFF_LAST_NAMES, getFranchiseOption } from "../constants.js";
 
 const TARGETS_PER_MONTH = 3;
@@ -190,7 +191,17 @@ export function buildNewRooftop(state: GameState, funding: FundingSource, payerD
   const newId = nextId("dlr");
   const brand = getFranchiseOption(franchiseKey).brand;
   const groupName = `${rng.pick(NEW_ROOFTOP_GROUP_NAMES)} ${brand}`;
-  state.dealerships[newId] = createDealership(rng, newId, groupName, franchiseKey, state.day);
+  const newDealership = createDealership(rng, newId, groupName, franchiseKey, state.day);
+  // If this franchise's manufacturing is one you already bought outright
+  // (and kept independent rather than merging), a brand-new rooftop of it
+  // opens already factory-owned — you own the plant, so every store you
+  // open under it inherits that, not just the ones that existed at the
+  // time you bought it.
+  const am = state.acquiredManufacturer;
+  if (am?.owned && !am.mergedIntoOwnBrand && am.franchiseKey === franchiseKey) {
+    applyFactoryOwnership(newDealership);
+  }
+  state.dealerships[newId] = newDealership;
   return { ok: true, newDealershipId: newId };
 }
 

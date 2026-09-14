@@ -167,6 +167,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
     auctionLotsDay: -1,
     modelStats: {},
     isHouseBrand: false,
+    factoryOwned: false,
   };
 }
 
@@ -217,6 +218,9 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     partsWarehouse: newPartsWarehouse(),
     manufacturerCo: newManufacturerCo(),
     economy: newEconomyState(),
+    acquiredManufacturer: null,
+    manufacturerAcquisitionTargets: [],
+    manufacturerAcquisitionTargetsMonth: -1,
   };
 }
 

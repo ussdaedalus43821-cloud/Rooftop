@@ -117,7 +117,8 @@ export function computeGroupNetWorth(state: GameState): number {
     + state.groupTreasury
     + state.captiveLender.cash + state.captiveLender.portfolioPrincipal
     + state.partsWarehouse.cash
-    + state.manufacturerCo.cash;
+    + state.manufacturerCo.cash
+    + (state.acquiredManufacturer?.cash ?? 0);
 }
 
 export function netWorthStanding(netWorth: number): NetWorthStanding {

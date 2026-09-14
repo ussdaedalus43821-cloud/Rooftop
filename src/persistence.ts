@@ -33,6 +33,7 @@ export function saveGame(state: GameState): SaveResult {
 function migrateState(state: GameState): GameState {
   for (const d of Object.values(state.dealerships)) {
     if (d.isHouseBrand === undefined) d.isHouseBrand = false;
+    if (d.factoryOwned === undefined) d.factoryOwned = false;
     if (!d.autoPilot) d.autoPilot = { sales: false, fi: false, auction: false, allocation: false, treasury: false };
     if (d.autoPilot.auction === undefined) d.autoPilot.auction = false;
     if (d.autoPilot.allocation === undefined) d.autoPilot.allocation = false;
@@ -74,6 +75,9 @@ function migrateState(state: GameState): GameState {
   if (!state.partsWarehouse) state.partsWarehouse = newPartsWarehouse();
   if (!state.manufacturerCo) state.manufacturerCo = newManufacturerCo();
   if (!state.economy) state.economy = newEconomyState();
+  if (state.acquiredManufacturer === undefined) state.acquiredManufacturer = null;
+  if (!state.manufacturerAcquisitionTargets) state.manufacturerAcquisitionTargets = [];
+  if (state.manufacturerAcquisitionTargetsMonth === undefined) state.manufacturerAcquisitionTargetsMonth = -1;
   return state;
 }
 

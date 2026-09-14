@@ -55,6 +55,15 @@ import {
 } from "../engine/manufacturerCo.js";
 import { computeGroupNetWorth } from "../engine/career.js";
 import { economyMoodLabel } from "../engine/economy.js";
+import {
+  MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH,
+  acquireManufacturer,
+  acquireManufacturerCost,
+  manufacturerAcquisitionTargets,
+  manufacturerAcquisitionUnlocked,
+  sweepAcquiredManufacturerCash,
+  type ManufacturerAcquisitionFunding,
+} from "../engine/manufacturerAcquisition.js";
 import { pushToast } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
@@ -68,6 +77,9 @@ let warehouseFunding: PartsWarehouseFunding = "active";
 let mfgFunding: ManufacturerCoFunding = "active";
 let mfgCategory: FranchiseCategory | null = null;
 let mfgBrandNameDraft = "";
+let acquireMfgFunding: ManufacturerAcquisitionFunding = "active";
+let acquireMfgTarget: FranchiseKey | null = null;
+let acquireMfgMerge = false;
 
 function reconCounts(d: Dealership) {
   const counts = { acquired: 0, inspected: 0, reconditioning: 0, ready: 0, listed: 0 };
@@ -398,6 +410,83 @@ export const overviewTab: TabModule = {
       </div>`;
     })();
 
+    const acquireManufacturerCard = ctx.state.career.role === "gm" ? "" : (() => {
+      const am = ctx.state.acquiredManufacturer;
+      if (am?.owned) {
+        const modeLabel = am.mergedIntoOwnBrand ? `merged into ${escapeHtml(ctx.state.manufacturerCo.brandName)}` : "run as its own independent brand";
+        return `
+        <div class="card">
+          <h3>${escapeHtml(am.brand)} — Acquired Manufacturer</h3>
+          <p class="sub">Bought outright on day ${am.acquiredDay} for ${money(am.acquiredCost)} — ${modeLabel}.</p>
+          ${am.mergedIntoOwnBrand ? `
+            <p class="text-faint" style="font-size:11.5px;">Its real lineup and plant capacity are now part of ${escapeHtml(ctx.state.manufacturerCo.brandName)} — see the Manufacturing Co. card for production stats.</p>
+          ` : `
+            <div class="grid grid-cols-3">
+              <div><div class="text-faint" style="font-size:11px;">Units Shipped Last Month</div><div class="mono">${am.lastMonthUnitsShipped}</div></div>
+              <div><div class="text-faint" style="font-size:11px;">Profit Last Month</div><div class="mono text-good">${money(am.lastMonthProfit)}</div></div>
+              <div><div class="text-faint" style="font-size:11px;">Uncollected Cash</div><div class="mono text-good">${money(am.cash)}</div></div>
+            </div>
+            <p class="text-faint" style="font-size:11.5px;margin-top:8px;">Every ${escapeHtml(am.brand)} dealership you run — present and future — is now factory-owned: no termination risk, no compliance grind, a permanent allocation boost, and its own manufacturing margin on every unit shipped, on top of that store's ordinary retail gross.</p>
+            <div class="btn-row" style="margin-top:8px;">
+              <button class="btn btn-sm btn-primary" data-action="overview:sweepAcquiredManufacturer" ${am.cash <= 0 ? "disabled" : ""}>Sweep ${money(am.cash)} To Treasury</button>
+            </div>
+          `}
+        </div>`;
+      }
+
+      const netWorth = computeGroupNetWorth(ctx.state);
+      if (!manufacturerAcquisitionUnlocked(ctx.state)) {
+        return `
+        <div class="card">
+          <h3>Acquire a Real Manufacturer</h3>
+          <p class="text-faint" style="font-size:11.5px;">The endgame capstone: buy out an entire real automaker's manufacturing operation, not just one of its dealerships. Terrifyingly expensive — unlocks once your group's net worth reaches ${money(MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH)}.</p>
+          <div class="meter" style="margin-top:8px;"><div style="width:${Math.min(100, (netWorth / MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH) * 100)}%"></div></div>
+          <p class="sub" style="margin-top:4px;">${money(netWorth)} / ${money(MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH)}</p>
+        </div>`;
+      }
+
+      const targets = manufacturerAcquisitionTargets(ctx.state, ctx.rng);
+      const selectedOption = acquireMfgTarget ? getFranchiseOption(acquireMfgTarget) : null;
+      const cost = selectedOption ? acquireManufacturerCost(selectedOption.category) : 0;
+      const affordable = selectedOption ? (acquireMfgFunding === "treasury" ? ctx.state.groupTreasury >= cost : d.ledger.cash >= cost) : false;
+      const canMerge = ctx.state.manufacturerCo.founded;
+      return `
+      <div class="card">
+        <h3>Acquire a Real Manufacturer</h3>
+        <p class="text-faint" style="font-size:11.5px;">Buy out an automaker's entire manufacturing operation outright — every dealership you run under that brand becomes factory-owned (no termination risk, a permanent allocation boost, and its own manufacturing margin on every unit), or fold its real lineup straight into your own house brand. Listings roll over monthly.</p>
+        ${targets.length === 0 ? '<div class="list-empty">Nothing on the market right now — check back next month.</div>' : `
+        <div class="form-row">
+          <label>Target</label>
+          <select data-action="overview:setAcquireMfgTarget">
+            <option value="" ${!acquireMfgTarget ? "selected" : ""}>— Select —</option>
+            ${targets.map((key) => {
+              const opt = getFranchiseOption(key);
+              return `<option value="${key}" ${acquireMfgTarget === key ? "selected" : ""}>${escapeHtml(opt.brand)} (${money(acquireManufacturerCost(opt.category))})</option>`;
+            }).join("")}
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Outcome</label>
+          <select data-action="overview:setAcquireMfgMerge">
+            <option value="independent" ${!acquireMfgMerge ? "selected" : ""}>Keep it running as its own brand</option>
+            <option value="merge" ${acquireMfgMerge ? "selected" : ""} ${canMerge ? "" : "disabled"}>Merge into ${canMerge ? escapeHtml(ctx.state.manufacturerCo.brandName) : "your own brand (found one first)"}</option>
+          </select>
+        </div>
+        ${selectedOption ? `<p style="font-size:12.5px;">Acquisition cost: <strong>${money(cost)}</strong></p>` : ""}
+        <div class="form-row">
+          <label>Pay from:</label>
+          <select data-action="overview:acquireMfgFundingSource">
+            <option value="active" ${acquireMfgFunding === "active" ? "selected" : ""}>${escapeHtml(d.name)}'s cash</option>
+            <option value="treasury" ${acquireMfgFunding === "treasury" ? "selected" : ""}>Group Treasury (${money(ctx.state.groupTreasury)})</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="overview:acquireManufacturer" ${selectedOption && affordable && (!acquireMfgMerge || canMerge) ? "" : "disabled"}>Acquire ${selectedOption ? escapeHtml(selectedOption.brand) : "Manufacturer"}</button>
+        </div>
+        `}
+      </div>`;
+    })();
+
     return `
       <div class="grid grid-cols-4">
         <div class="card">
@@ -456,6 +545,7 @@ export const overviewTab: TabModule = {
       ${partsWarehouseCard}
       ${manufacturerCard}
       ${expansionCard}
+      ${acquireManufacturerCard}
       ${buildRooftopCard}
     `;
   },
@@ -564,6 +654,23 @@ export const overviewTab: TabModule = {
       pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
       return true;
     }
+    if (action === "overview:acquireManufacturer") {
+      if (!acquireMfgTarget) return false;
+      const target = getFranchiseOption(acquireMfgTarget).brand;
+      if (!confirm(`Acquire ${target}'s entire manufacturing operation for ${money(acquireManufacturerCost(getFranchiseOption(acquireMfgTarget).category))}? This can't be undone.`)) return false;
+      const result = acquireManufacturer(ctx.state, acquireMfgFunding, ctx.state.activeDealershipId, acquireMfgTarget, acquireMfgMerge, ctx.rng);
+      pushToast(ctx.state, result.ok ? `${target} acquired! ${acquireMfgMerge ? "Its lineup is now part of your own brand." : "Every store you run under it is now factory-owned."}` : (result.reason ?? "Couldn't complete that acquisition."), result.ok ? "good" : "warn");
+      if (result.ok) {
+        acquireMfgTarget = null;
+        acquireMfgMerge = false;
+      }
+      return true;
+    }
+    if (action === "overview:sweepAcquiredManufacturer") {
+      const amount = sweepAcquiredManufacturerCash(ctx.state);
+      pushToast(ctx.state, amount > 0 ? `${money(amount)} swept into the Group Treasury.` : "Nothing to sweep.", amount > 0 ? "good" : "warn");
+      return true;
+    }
     if (action === "overview:buildRooftop") {
       if (!buildBrand) return false;
       const result = buildNewRooftop(ctx.state, buildFunding, ctx.state.activeDealershipId, buildBrand, ctx.rng);
@@ -595,6 +702,18 @@ export const overviewTab: TabModule = {
     }
     if (action === "overview:mfgFundingSource" && target instanceof HTMLSelectElement) {
       mfgFunding = target.value as ManufacturerCoFunding;
+      return true;
+    }
+    if (action === "overview:setAcquireMfgTarget" && target instanceof HTMLSelectElement) {
+      acquireMfgTarget = (target.value || null) as FranchiseKey | null;
+      return true;
+    }
+    if (action === "overview:setAcquireMfgMerge" && target instanceof HTMLSelectElement) {
+      acquireMfgMerge = target.value === "merge";
+      return true;
+    }
+    if (action === "overview:acquireMfgFundingSource" && target instanceof HTMLSelectElement) {
+      acquireMfgFunding = target.value as ManufacturerAcquisitionFunding;
       return true;
     }
     if (action === "overview:setTreasuryAmount" && target instanceof HTMLInputElement) {

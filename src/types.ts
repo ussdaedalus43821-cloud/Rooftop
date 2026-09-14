@@ -310,6 +310,7 @@ export interface Dealership {
   acquiredDay?: number; // set only when this store was bought (competitor purchase), not founded — drives the recent-acquisition failure protection
   acquiredCost?: number; // what was paid to acquire it, for that same protection's partial refund
   isHouseBrand: boolean; // sells the player's own Manufacturer Co. brand instead of a real franchise — no tier/quota/termination grind, allocation comes from state.manufacturerCo instead
+  factoryOwned: boolean; // this store's real franchise is one the player has bought outright via acquireManufacturer (kept independent, not merged) — no termination risk, permanent allocation boost, ships its own manufacturing margin to state.acquiredManufacturer
 }
 
 export interface CompetitorTarget {
@@ -387,6 +388,23 @@ export interface EconomyState {
   eventLog: { day: number; headline: string }[]; // recent history for a player-facing feed
 }
 
+export interface AcquiredManufacturerState {
+  owned: boolean;
+  brand: string;
+  franchiseKey: FranchiseKey;
+  acquiredDay: number;
+  acquiredCost: number;
+  mergedIntoOwnBrand: boolean; // true = folded into the player's own Manufacturer Co.; false = operated as its own distinct brand
+  productionCostFactor: number; // only meaningful when independent (not merged)
+  cash: number; // retained manufacturing profit, swept to the Group Treasury manually
+  unitsShippedThisMonth: number;
+  profitThisMonth: number;
+  lastMonthUnitsShipped: number;
+  lastMonthProfit: number;
+  lifetimeUnitsShipped: number;
+  lifetimeProfit: number;
+}
+
 export interface GameState {
   version: number;
   seed: number;
@@ -409,4 +427,7 @@ export interface GameState {
   partsWarehouse: PartsWarehouseState;
   manufacturerCo: ManufacturerCoState;
   economy: EconomyState;
+  acquiredManufacturer: AcquiredManufacturerState | null;
+  manufacturerAcquisitionTargets: FranchiseKey[]; // real brands currently for sale outright, refreshed monthly
+  manufacturerAcquisitionTargetsMonth: number;
 }
