@@ -94,6 +94,13 @@ export function resolveMilestone(state: GameState, choice: MilestoneChoice, day:
   }
 
   state.career.milestoneResolved = true;
+  // A sustained streak that's already well past the threshold (e.g. a
+  // store that's been strong for years) would otherwise stay eligible
+  // every single month after the first offer — consecutiveStrongMonths
+  // never dropped below the gate, so accepting would immediately re-open
+  // it next month instead of requiring another genuine 6-month run.
+  // Reset it here so every repeat buy-in re-earns its own streak.
+  state.career.consecutiveStrongMonths = 0;
 
   if (choice === "equity") {
     // The first buy-in and every later top-up target the same store — set
