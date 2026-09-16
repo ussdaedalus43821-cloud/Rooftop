@@ -257,6 +257,8 @@ export interface MonthlyFinancials {
   incomeTaxExpense: number; // blended federal + state tax on positive net income
   curtailmentPenalties: number;
   incentiveExpense: number; // performance bonuses paid to staff (top-performer, aged-unit clearance, department pool, GM)
+  holdbackIncome: number; // manufacturer dealer holdback on new-vehicle sales — invisible to the customer and excluded from commissionable front-end gross, same as in real life
+  chargebackExpense: number; // F&I profit clawed back when an early loan payoff or product cancellation triggers a chargeback on a past deal
   netIncome: number;
   unitsSoldNew: number;
   unitsSoldUsed: number;
@@ -292,6 +294,12 @@ export interface GameSettings {
   autoSaveEnabled: boolean;
 }
 
+/** A booked F&I deal's profit is never fully safe — an early loan payoff or product cancellation can claw part of it back. One record per deal with F&I gross, tracked until it either charges back or ages out of the risk window. */
+export interface FiChargebackRecord {
+  fiGrossAtRisk: number;
+  monthsElapsed: number;
+}
+
 export interface Dealership {
   id: string;
   name: string;
@@ -307,6 +315,7 @@ export interface Dealership {
   ledger: LedgerAccounts;
   monthlyHistory: MonthlyFinancials[];
   currentMonth: MonthlyFinancials;
+  fiChargebackExposure: FiChargebackRecord[];
   reputation: number; // 0-100, drives showroom traffic
   serviceCustomerBase: number; // count of past buyers eligible for retention
   isUsedOnly: boolean; // true after franchise termination

@@ -54,7 +54,7 @@ import {
   type ManufacturerCoFunding,
 } from "../engine/manufacturerCo.js";
 import { computeGroupNetWorth } from "../engine/career.js";
-import { economyMoodLabel } from "../engine/economy.js";
+import { economyMoodLabel, seasonalTrafficLabel, seasonalTrafficMultiplier } from "../engine/economy.js";
 import {
   MANUFACTURER_ACQUISITION_UNLOCK_NET_WORTH,
   acquireManufacturer,
@@ -107,12 +107,15 @@ export const overviewTab: TabModule = {
     const era = econ.currentEra;
     const trend = economyMoodLabel(ctx.state);
     const eraClass = era.demandMult >= 1.05 ? "text-good" : era.demandMult < 0.9 ? "text-bad" : "";
+    const seasonMult = seasonalTrafficMultiplier(ctx.state.day);
+    const seasonClass = seasonMult >= 1.05 ? "text-good" : seasonMult < 0.92 ? "text-bad" : "";
     const marketCard = `
       <div class="card">
         <h3>Market Conditions</h3>
         <div class="big-number ${eraClass}">${escapeHtml(era.headline)}</div>
         <p class="text-faint" style="font-size:11.5px;margin:6px 0 0;">${escapeHtml(era.description)}</p>
         <div class="sub" style="margin-top:8px;">Sentiment trending: ${trend} (${econ.sentiment.toFixed(2)}×) · this era runs through day ${era.endDay}</div>
+        <div class="sub ${seasonClass}" style="margin-top:4px;">${escapeHtml(seasonalTrafficLabel(ctx.state.day))} (${seasonMult.toFixed(2)}×)</div>
         ${econ.eraLog.length > 0 ? `
           <details style="margin-top:8px;">
             <summary style="cursor:pointer;font-size:11.5px;color:var(--text-faint);">Economic history this game</summary>

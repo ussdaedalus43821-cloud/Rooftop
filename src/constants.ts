@@ -672,3 +672,22 @@ export const UTILITIES_PER_BAY_MONTHLY = 900; // service bays draw real power, w
 export const UTILITIES_PER_LOT_CAPACITY_UNIT = 40; // a bigger lot needs more lighting and climate control
 
 export const INCOME_TAX_RATE = 0.26; // a realistic blended effective federal + state rate on positive net income
+
+// Dealer holdback: the manufacturer repays a slice of invoice back to the
+// dealer, invisible to the customer and excluded from the commissionable
+// gross salespeople are paid on (real dealers keep it off the deal jacket
+// for exactly that reason) — it's why a store can genuinely make money
+// selling "at invoice." Real-world holdback is typically paid quarterly;
+// this credits it at time of sale for simplicity, same cash-basis timing
+// as every other gross-profit line here.
+export const HOLDBACK_RATE = 0.02; // ~2% of invoice, new units only — real-world runs roughly 1-3%
+
+// F&I chargebacks: booked F&I profit isn't fully safe money. An early loan
+// payoff (kills reserve income) or a canceled warranty/GAP/maintenance
+// product within its window forces a partial refund. Modeled as a flat
+// monthly risk against each deal's F&I gross for a couple of years after
+// the sale, rather than trying to simulate individual payoff/cancellation
+// events — the aggregate exposure is what matters for the P&L.
+export const CHARGEBACK_WINDOW_MONTHS = 24;
+export const CHARGEBACK_MONTHLY_CHANCE = 0.02; // ~38% cumulative chance any given F&I deal eventually charges back over the full window — in line with real dealer chargeback rates
+export const CHARGEBACK_FRACTION = 0.4; // the pro-rated/unearned share of that deal's F&I gross that gets clawed back when it fires

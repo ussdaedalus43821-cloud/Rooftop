@@ -4,7 +4,7 @@ import { isNewMonth, monthLabel } from "./clock.js";
 import { autoManageFloorPlan, inventoryBookValue, lotCapacity, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
-import { economyDemandMultiplier, economyPriceToleranceMult, economyRateAdj, tickEconomyDaily } from "./economy.js";
+import { economyDemandMultiplier, economyPriceToleranceMult, economyRateAdj, seasonalTrafficMultiplier, tickEconomyDaily } from "./economy.js";
 import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
 import { autoRunFi, MAX_FI_DEALS_PER_MANAGER_PER_DAY } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
@@ -23,6 +23,9 @@ import {
   postCashExpense,
 } from "./financials.js";
 import {
+  CHARGEBACK_FRACTION,
+  CHARGEBACK_MONTHLY_CHANCE,
+  CHARGEBACK_WINDOW_MONTHS,
   FACILITY_ASSESSED_VALUE_PER_POINT,
   GENERAL_ADMIN_MONTHLY,
   INCOME_TAX_RATE,
@@ -113,7 +116,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
     }
   }
 
-  const ups = dailyUpCount(d, rng, economyDemandMultiplier(state));
+  const ups = dailyUpCount(d, rng, economyDemandMultiplier(state) * seasonalTrafficMultiplier(state.day));
   for (let i = 0; i < ups; i++) {
     tryCreateUp(d, state.day, rng, economyRateAdj(state), economyPriceToleranceMult(state));
   }
@@ -189,6 +192,7 @@ export function monthToDateGrossProfit(d: Dealership): number {
 export function monthToDateNetIncome(d: Dealership): number {
   const m = d.currentMonth;
   return monthToDateGrossProfit(d)
+    + m.holdbackIncome
     - m.payrollExpense
     - m.floorPlanInterestExpense
     - m.overheadExpense
@@ -197,6 +201,7 @@ export function monthToDateNetIncome(d: Dealership): number {
     - m.utilitiesExpense
     - m.curtailmentPenalties
     - m.incentiveExpense
+    - m.chargebackExpense
     - m.incomeTaxExpense;
 }
 
@@ -224,10 +229,30 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   payAccruedPayroll(d);
   payFloorPlanInterest(d);
 
+  // F&I chargebacks: each open deal carries a flat monthly chance of an
+  // early loan payoff or product cancellation clawing back part of its
+  // booked F&I gross. Each exposure resolves at most once — charged back
+  // (removed) or aged past the risk window (also removed) — so a deal is
+  // never charged twice.
+  let chargebackTotal = 0;
+  const survivingExposure: Dealership["fiChargebackExposure"] = [];
+  for (const exposure of d.fiChargebackExposure) {
+    if (rng.chance(CHARGEBACK_MONTHLY_CHANCE)) {
+      chargebackTotal += exposure.fiGrossAtRisk * CHARGEBACK_FRACTION;
+      continue;
+    }
+    exposure.monthsElapsed += 1;
+    if (exposure.monthsElapsed < CHARGEBACK_WINDOW_MONTHS) survivingExposure.push(exposure);
+  }
+  d.fiChargebackExposure = survivingExposure;
+  if (chargebackTotal > 0) postCashExpense(d, chargebackTotal);
+  d.currentMonth.chargebackExpense = chargebackTotal;
+
   d.currentMonth.totalGrossProfit =
     d.currentMonth.frontEndGross + d.currentMonth.fiGross + d.currentMonth.serviceGross + d.currentMonth.partsGross;
   const preTaxPreIncentiveNetIncome =
-    d.currentMonth.totalGrossProfit -
+    d.currentMonth.totalGrossProfit +
+    d.currentMonth.holdbackIncome -
     d.currentMonth.payrollExpense -
     d.currentMonth.floorPlanInterestExpense -
     d.currentMonth.overheadExpense -
@@ -235,7 +260,8 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     d.currentMonth.propertyTaxExpense -
     d.currentMonth.utilitiesExpense -
     d.currentMonth.curtailmentPenalties -
-    d.currentMonth.incentiveExpense; // aged-unit spiffs, already paid out during the month
+    d.currentMonth.incentiveExpense - // aged-unit spiffs, already paid out during the month
+    d.currentMonth.chargebackExpense;
 
   // Top-performer, service-pool, and GM bonuses are read from this month's
   // deal/gross counters, so this must run before applyMonthlyStaffCycle
@@ -321,6 +347,8 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     incomeTaxExpense: 0,
     curtailmentPenalties: 0,
     incentiveExpense: 0,
+    holdbackIncome: 0,
+    chargebackExpense: 0,
     netIncome: 0,
     unitsSoldNew: 0,
     unitsSoldUsed: 0,

@@ -26,6 +26,7 @@
 // ---------------------------------------------------------------------------
 import type { EconomicEra, EconomicRegime, EconomyState, GameState } from "../types.js";
 import { Rng } from "../rng.js";
+import { toCalendarDate } from "./clock.js";
 
 const SENTIMENT_REVERSION_RATE = 0.015;
 const SENTIMENT_DAILY_NOISE = 0.008;
@@ -203,6 +204,41 @@ export function economyMoodLabel(state: GameState): string {
   if (s >= 1.06) return "Improving";
   if (s >= 0.98) return "Steady";
   return "Softening";
+}
+
+// A within-year traffic rhythm layered on top of the multi-year regime
+// cycle above — real showroom traffic isn't flat across a calendar year.
+// Spring/early summer is the traditional selling season; February-April
+// gets a real, well-documented bump from tax-refund buyers (used-vehicle
+// lots especially); year-end brings a clearance/new-model-year push;
+// January and the fall are the traditional lulls. Indexed to average 1.0
+// across the year, so this redistributes WHEN traffic happens rather than
+// inflating or deflating the total.
+const SEASONAL_TRAFFIC_BY_MONTH = [
+  0.80, // January — post-holiday lull
+  0.95, // February — tax-refund season begins
+  1.15, // March — tax-refund season peaks, spring selling season starts
+  1.15, // April — tax-refund season, spring
+  1.10, // May — Memorial Day sales events
+  1.05, // June
+  1.05, // July — July 4th sales events
+  1.00, // August — model year-end clearance begins
+  0.95, // September — Labor Day, back-to-school
+  0.90, // October
+  0.90, // November — pre-holiday lull
+  1.15, // December — year-end clearance, new model year, tax write-off buyers
+];
+
+export function seasonalTrafficMultiplier(day: number): number {
+  return SEASONAL_TRAFFIC_BY_MONTH[toCalendarDate(day).month];
+}
+
+export function seasonalTrafficLabel(day: number): string {
+  const mult = seasonalTrafficMultiplier(day);
+  if (mult >= 1.1) return "Peak selling season — showroom traffic running well above normal";
+  if (mult >= 1.0) return "Solid seasonal demand — traffic a bit above normal";
+  if (mult >= 0.92) return "Average seasonal demand";
+  return "Seasonal lull — showroom traffic running below normal";
 }
 
 function clamp(v: number, min: number, max: number): number {

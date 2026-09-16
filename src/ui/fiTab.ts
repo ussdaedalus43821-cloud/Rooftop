@@ -40,6 +40,17 @@ export const fiTab: TabModule = {
         </table>`}
       </div>`;
 
+    const exposure = d.fiChargebackExposure.reduce((sum, e) => sum + e.fiGrossAtRisk, 0);
+    const exposureCard = `
+      <div class="card">
+        <h3>Chargeback Exposure</h3>
+        <p class="sub">Booked F&amp;I profit isn't fully safe money — an early loan payoff or a canceled warranty/GAP/maintenance product can claw part of it back for up to 2 years after the sale.</p>
+        <div class="grid grid-cols-2">
+          <div><div class="text-faint" style="font-size:11px;">Open Exposure</div><div class="mono">${money(exposure)}</div></div>
+          <div><div class="text-faint" style="font-size:11px;">Deals At Risk</div><div class="mono">${d.fiChargebackExposure.length}</div></div>
+        </div>
+      </div>`;
+
     let panel = "";
     if (selected) {
       const v = d.vehicles.find((x) => x.id === selected.vehicleId);
@@ -126,7 +137,7 @@ export const fiTab: TabModule = {
         <div class="btn-row"><button class="btn btn-primary" data-action="fi:hire">Hire F&amp;I Manager (${money(hireCost("fi_manager"))})</button></div>
       </div>`;
 
-    return `${queuePanel}${panel}${staffPanel}`;
+    return `${queuePanel}${exposureCard}${panel}${staffPanel}`;
   },
   onAction(ctx, action, target) {
     const d = ctx.state.dealerships[ctx.state.activeDealershipId];

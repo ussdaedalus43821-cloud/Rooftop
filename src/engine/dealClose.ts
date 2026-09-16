@@ -1,8 +1,9 @@
 import type { Deal, Dealership, Vehicle } from "../types.js";
 import { createTradeInVehicle } from "./acquisition.js";
-import { payoffFloorPlanUnit, postCashExpense, sellVehicleBookkeeping } from "./financials.js";
+import { payoffFloorPlanUnit, postCashExpense, postGrossProfit, sellVehicleBookkeeping } from "./financials.js";
 import { awardAgedUnitBonus } from "./staffing.js";
 import { Rng } from "../rng.js";
+import { HOLDBACK_RATE } from "../constants.js";
 
 /**
  * Finalizes a sale after F&I: books the vehicle sale, pays (or, if the
@@ -50,8 +51,21 @@ export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
 
   d.currentMonth.frontEndGross += grossProfit;
   d.currentMonth.fiGross += deal.fiGross;
-  if (vehicle.condition === "new") d.currentMonth.unitsSoldNew += 1;
-  else d.currentMonth.unitsSoldUsed += 1;
+  if (vehicle.condition === "new") {
+    d.currentMonth.unitsSoldNew += 1;
+    // Dealer holdback — booked separately from frontEndGross on purpose:
+    // real commission plans are paid on the deal's gross, and holdback
+    // deliberately never shows up on the deal jacket that number comes
+    // from, so it doesn't inflate what the rep gets paid.
+    const holdback = vehicle.model.invoice * HOLDBACK_RATE;
+    postGrossProfit(d, holdback);
+    d.currentMonth.holdbackIncome += holdback;
+  } else {
+    d.currentMonth.unitsSoldUsed += 1;
+  }
+  if (deal.fiGross > 0) {
+    d.fiChargebackExposure.push({ fiGrossAtRisk: deal.fiGross, monthsElapsed: 0 });
+  }
   d.manufacturer.quotaAttainedThisMonth += vehicle.condition === "new" ? 1 : 0;
   recordModelSale(d, vehicle, grossProfit);
 
