@@ -127,6 +127,24 @@ export const overviewTab: TabModule = {
         ` : ""}
       </div>`;
 
+    const recentIncidents = ctx.state.eventLog.slice(-8).reverse();
+    const incidentsCard = recentIncidents.length === 0 ? "" : `
+      <div class="card">
+        <h3>Recent Incidents</h3>
+        <table>
+          <thead><tr><th>Day</th><th>What Happened</th><th class="num">Loss</th><th class="num">Insurance Paid</th></tr></thead>
+          <tbody>
+            ${recentIncidents.map((e) => `<tr>
+              <td class="text-faint">${e.day}</td>
+              <td style="font-size:12.5px;">${e.isRipple ? "↳ " : ""}${escapeHtml(e.headline.replace(/^.*?:\s*/, ""))}</td>
+              <td class="num ${e.lossAmount > 0 ? "text-bad" : ""}">${e.lossAmount > 0 ? money(e.lossAmount) : "—"}</td>
+              <td class="num ${e.insurancePayout > 0 ? "text-good" : ""}">${e.insurancePayout > 0 ? money(e.insurancePayout) : "—"}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+        <p class="text-faint" style="font-size:11px;margin-top:8px;">A "↳" row is a follow-up to an incident above it — not every event escalates, but some do. Physical/liability losses run through the Insurance tab's coverage; a compliance strike or fine doesn't.</p>
+      </div>`;
+
     const threat = ctx.state.takeoverThreat;
     const takeoverCard = threat ? (() => {
       const targetD = ctx.state.dealerships[threat.targetDealershipId];
@@ -578,6 +596,7 @@ export const overviewTab: TabModule = {
       </div>
       ${takeoverCard}
       ${marketCard}
+      ${incidentsCard}
       ${groupCard}
       ${treasuryCard}
       ${captiveLenderCard}

@@ -284,6 +284,43 @@ export interface CareerState {
 
 export type FailureKind = "floorplan_seized" | null;
 
+export type RandomEventKind =
+  | "test_drive_collision"
+  | "test_drive_injury_escalation"
+  | "hailstorm"
+  | "hailstorm_recon_backlog"
+  | "lot_theft"
+  | "lot_theft_repeat"
+  | "service_bay_mishap"
+  | "service_bay_liability_escalation"
+  | "slip_and_fall"
+  | "slip_and_fall_escalation"
+  | "manufacturer_recall"
+  | "recall_compliance_strike"
+  | "compliance_fine"
+  | "compliance_fine_escalation";
+
+/** One fired event or ripple, kept for the Overview tab's incident feed. */
+export interface RandomEventRecord {
+  day: number;
+  dealershipId: string;
+  dealershipName: string;
+  kind: RandomEventKind;
+  headline: string;
+  detail: string;
+  lossAmount: number; // 0 for a non-financial ripple like a compliance strike
+  insurancePayout: number; // 0 if uninsured or not an insurable event
+  isRipple: boolean;
+}
+
+/** A follow-up event scheduled for a later day when an earlier event's ripple roll hits — resolved by engine/randomEvents.ts once state.day reaches it. Not every event escalates; this only exists for the ones that rolled a real chance and hit. */
+export interface ScheduledRipple {
+  day: number;
+  dealershipId: string;
+  kind: RandomEventKind;
+  lossAmount?: number; // pre-rolled at schedule time for most ripples
+}
+
 export type InsuranceTier = "none" | "basic" | "standard" | "premium";
 
 /** One paid claim, kept for the tab's history and to drive experience-rated premiums (see engine/insurance.js's recentClaimsPayout). */
@@ -495,4 +532,6 @@ export interface GameState {
   manufacturerAcquisitionTargets: FranchiseKey[]; // real brands currently for sale outright, refreshed monthly
   manufacturerAcquisitionTargetsMonth: number;
   takeoverThreat: TakeoverThreat | null;
+  eventLog: RandomEventRecord[]; // capped rolling history of fired random events/ripples, most recent last
+  scheduledRipples: ScheduledRipple[];
 }

@@ -16,6 +16,7 @@ import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShip
 import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment, recordOemPartsMarginAcquired } from "./manufacturerAcquisition.js";
 import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
 import { monthlyInsuranceCycle } from "./insurance.js";
+import { dailyRandomEventCheck, dailyWeatherCheck, resolveScheduledRipples } from "./randomEvents.js";
 import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle, applyStaffCareerCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -120,6 +121,16 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   const ups = dailyUpCount(d, rng, economyDemandMultiplier(state) * seasonalTrafficMultiplier(state.day));
   for (let i = 0; i < ups; i++) {
     tryCreateUp(d, state.day, rng, economyRateAdj(state), economyPriceToleranceMult(state));
+  }
+
+  // Checked here, before autopilot resolves today's negotiations, so a
+  // test-drive collision can actually see the deal it happened during —
+  // autoNegotiateDeal below runs every open negotiation to resolution in
+  // the same tick it's created, so activeNegotiations() would always read
+  // empty by the end of the day.
+  const randomEvent = dailyRandomEventCheck(state, d, rng, state.day);
+  if (randomEvent) {
+    pushToast(state, randomEvent.headline, randomEvent.insurancePayout > 0 ? "warn" : "bad");
   }
 
   if (d.autoPilot.sales) {
@@ -394,6 +405,13 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
   }
   if (takeoverTick.lost) {
     pushToast(state, `${takeoverTick.lost.rivalName} forced the sale of ${takeoverTick.lost.dealershipName} for $${Math.round(takeoverTick.lost.forcedPrice).toLocaleString()} — well below what it was worth.`, "bad");
+  }
+
+  for (const weatherEvent of dailyWeatherCheck(state, rng, state.day)) {
+    pushToast(state, weatherEvent.headline, "warn");
+  }
+  for (const ripple of resolveScheduledRipples(state, rng, state.day)) {
+    pushToast(state, ripple.headline, ripple.lossAmount > 0 || ripple.kind === "recall_compliance_strike" ? "bad" : "warn");
   }
 
   for (const id of Object.keys(state.dealerships)) {
