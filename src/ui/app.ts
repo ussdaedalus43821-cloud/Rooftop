@@ -41,6 +41,7 @@ let pickerCategory: FranchiseCategory | null = null;
 let pickerBrand: FranchiseKey | null = null;
 let notificationsPanelOpen = false;
 let newRooftopNameDraft = "";
+let eventSignatureDraft = "";
 
 export function isNewGameSetupActive(): boolean {
   return newGameSetupActive;
@@ -268,10 +269,22 @@ function renderEventModal(): string {
   const remaining = ctx.state.pendingEventModal.length - 1;
   const title = EVENT_KIND_TITLE[event.kind] ?? "Incident";
   const netImpact = event.lossAmount - event.insurancePayout;
+  const refNumber = `${String(event.day).padStart(5, "0")}-${event.kind.slice(0, 3).toUpperCase()}`;
+  const signed = eventSignatureDraft.trim().length > 0;
   return `
   <div class="modal-backdrop">
     <div class="modal">
-      <h2>${escapeHtml(title)} — ${escapeHtml(event.dealershipName)}</h2>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:12px;">
+        <div>
+          <div class="text-faint" style="font-size:10.5px;text-transform:uppercase;letter-spacing:0.8px;">Notice of Incident — Owner Review Required</div>
+          <h2 style="margin:3px 0 0;">${escapeHtml(title)}</h2>
+          <div class="text-faint" style="font-size:11.5px;margin-top:2px;">${escapeHtml(event.dealershipName)}</div>
+        </div>
+        <div class="mono text-faint" style="font-size:11px;text-align:right;white-space:nowrap;">
+          Ref. ${escapeHtml(refNumber)}<br/>
+          ${escapeHtml(formatDate(event.day))}
+        </div>
+      </div>
       <p>${escapeHtml(event.detail)}</p>
       ${event.lossAmount > 0 ? `
       <div class="grid grid-cols-3" style="margin-top:4px;">
@@ -279,8 +292,12 @@ function renderEventModal(): string {
         <div><div class="text-faint" style="font-size:11px;">Insurance Paid</div><div class="mono ${event.insurancePayout > 0 ? "text-good" : ""}">${event.insurancePayout > 0 ? money(event.insurancePayout) : "—"}</div></div>
         <div><div class="text-faint" style="font-size:11px;">Net Impact</div><div class="mono text-bad">${money(netImpact)}</div></div>
       </div>` : ""}
-      <div class="btn-row" style="margin-top:14px;">
-        <button class="btn btn-primary" data-action="event:acknowledge">Got it${remaining > 0 ? ` (${remaining} more)` : ""}</button>
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px;">
+        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This notice has been entered into the record. Sign below to approve and file it.</label>
+        <div class="btn-row">
+          <input type="text" placeholder="Sign your name to approve" value="${escapeHtml(eventSignatureDraft)}" data-action="event:setSignature" style="flex:1;font-style:italic;background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:13px;" maxlength="40" />
+          <button class="btn btn-primary" data-action="event:acknowledge" ${signed ? "" : "disabled"}>Approve &amp; File${remaining > 0 ? ` (${remaining} more)` : ""}</button>
+        </div>
       </div>
     </div>
   </div>`;
@@ -339,6 +356,7 @@ function onClick(e: MouseEvent): void {
     return;
   }
   if (action === "event:acknowledge") {
+    if (eventSignatureDraft.trim().length === 0) return;
     ctx.state.pendingEventModal.shift();
     render();
     return;
@@ -404,6 +422,11 @@ function onInput(e: Event): void {
   }
   if (action === "milestone:setName" && target instanceof HTMLInputElement) {
     newRooftopNameDraft = target.value;
+    return;
+  }
+  if (action === "event:setSignature" && target instanceof HTMLInputElement) {
+    eventSignatureDraft = target.value;
+    render();
     return;
   }
   const mod = activeTabModule();
