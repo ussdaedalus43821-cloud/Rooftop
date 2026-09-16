@@ -3,7 +3,7 @@ import type { AppCtx, TabModule } from "./types.js";
 import { Rng } from "../rng.js";
 import { formatDate } from "../engine/clock.js";
 import { totalAssets, totalLiabilities } from "../engine/financials.js";
-import { pushToast } from "../engine/engine.js";
+import { pushToast, monthToDateNetIncome } from "../engine/engine.js";
 import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
 import { createNewGame } from "../state.js";
@@ -156,7 +156,7 @@ export function render(): void {
       <div class="hud-stats">
         <div class="hud-stat"><div class="label">Cash</div><div class="value ${d.ledger.cash < 0 ? "neg" : ""}">${money(d.ledger.cash)}</div></div>
         <div class="hud-stat"><div class="label">Net Worth</div><div class="value ${inv < 0 ? "neg" : "pos"}">${money(inv)}</div></div>
-        <div class="hud-stat"><div class="label">MTD Net</div><div class="value ${d.currentMonth.netIncome >= 0 ? "pos" : "neg"}">${money(d.currentMonth.netIncome)}</div></div>
+        <div class="hud-stat"><div class="label">MTD Net</div><div class="value ${monthToDateNetIncome(d) >= 0 ? "pos" : "neg"}">${money(monthToDateNetIncome(d))}</div></div>
         <div class="hud-stat"><div class="label">CSI</div><div class="value">${Math.round(d.manufacturer.csi)}</div></div>
       </div>
       ${renderNotificationBell(state)}

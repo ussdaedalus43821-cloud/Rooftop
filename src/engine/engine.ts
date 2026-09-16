@@ -170,6 +170,36 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   }
 }
 
+/** Live gross profit for the month so far. d.currentMonth.totalGrossProfit only gets its final value once, at month-end inside finalizeMonth (then the whole object resets to zero) — anything rendered mid-month needs to sum the accumulating line items directly instead. */
+export function monthToDateGrossProfit(d: Dealership): number {
+  return d.currentMonth.frontEndGross + d.currentMonth.fiGross + d.currentMonth.serviceGross + d.currentMonth.partsGross;
+}
+
+/**
+ * Live net income for the month so far, same formula finalizeMonth uses,
+ * applied to whatever's accumulated up to right now. d.currentMonth.netIncome
+ * itself is useless for a running "MTD Net" display: it's written once, at
+ * month-end, and the object holding it is replaced with a fresh zeroed one
+ * a few lines later in that same synchronous call — so the UI never
+ * actually observes a nonzero value there. The lump month-end-only items
+ * (overhead/occupancy/property tax/utilities/income tax) correctly read as
+ * 0 here until the month actually closes and posts them, same as a real
+ * business's books mid-month.
+ */
+export function monthToDateNetIncome(d: Dealership): number {
+  const m = d.currentMonth;
+  return monthToDateGrossProfit(d)
+    - m.payrollExpense
+    - m.floorPlanInterestExpense
+    - m.overheadExpense
+    - m.occupancyExpense
+    - m.propertyTaxExpense
+    - m.utilitiesExpense
+    - m.curtailmentPenalties
+    - m.incentiveExpense
+    - m.incomeTaxExpense;
+}
+
 function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   // Real, separately-scaling operating costs instead of one flat
   // "overhead" number — occupancy and utilities grow with how built-out

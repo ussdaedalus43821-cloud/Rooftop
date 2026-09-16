@@ -65,7 +65,7 @@ import {
   type ManufacturerAcquisitionFunding,
 } from "../engine/manufacturerAcquisition.js";
 import { defendTakeover, type TakeoverDefenseFunding } from "../engine/hostileTakeover.js";
-import { pushToast } from "../engine/engine.js";
+import { pushToast, monthToDateGrossProfit, monthToDateNetIncome } from "../engine/engine.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
 import { escapeHtml } from "./app.js";
 
@@ -156,7 +156,7 @@ export const overviewTab: TabModule = {
             ${Object.values(ctx.state.dealerships).map((x) => `<tr>
               <td>${escapeHtml(x.name)}</td>
               <td class="num">${money(x.ledger.cash)}</td>
-              <td class="num ${x.currentMonth.netIncome >= 0 ? "text-good" : "text-bad"}">${money(x.currentMonth.netIncome)}</td>
+              <td class="num ${monthToDateNetIncome(x) >= 0 ? "text-good" : "text-bad"}">${money(monthToDateNetIncome(x))}</td>
               <td class="num">${Math.round(x.manufacturer.csi)}</td>
               <td><button class="btn btn-sm btn-bad" data-action="overview:sellDealership" data-target="${x.id}">Sell (~${money(appraiseDealership(x))})</button></td>
             </tr>`).join("")}
@@ -520,8 +520,8 @@ export const overviewTab: TabModule = {
         </div>
         <div class="card">
           <h3>This Month Net Income</h3>
-          <div class="big-number ${d.currentMonth.netIncome >= 0 ? "text-good" : "text-bad"}">${money(d.currentMonth.netIncome)}</div>
-          <div class="sub">Gross so far: ${money(d.currentMonth.totalGrossProfit || (d.currentMonth.frontEndGross + d.currentMonth.fiGross + d.currentMonth.serviceGross + d.currentMonth.partsGross))}</div>
+          <div class="big-number ${monthToDateNetIncome(d) >= 0 ? "text-good" : "text-bad"}">${money(monthToDateNetIncome(d))}</div>
+          <div class="sub">Gross so far: ${money(monthToDateGrossProfit(d))}</div>
         </div>
         <div class="card">
           <h3>Reputation</h3>
