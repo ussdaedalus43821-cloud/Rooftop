@@ -229,15 +229,19 @@ export const salesFloorTab: TabModule = {
     if (!deal) return false;
     const draft = draftFor(deal);
     if (action === "sales:draftPrice" && target instanceof HTMLInputElement) {
-      draft.price = Number(target.value);
+      const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
+      const ceiling = vehicle ? vehicle.listPrice * 3 : 10_000_000;
+      draft.price = Math.max(0, Math.min(ceiling, Number(target.value) || 0));
       return true;
     }
     if (action === "sales:draftTrade" && target instanceof HTMLInputElement) {
-      draft.tradeAllowance = Number(target.value);
+      const marketValue = deal.customer.tradeVehicle?.marketValue ?? 0;
+      const ceiling = marketValue > 0 ? marketValue * 2 : 100_000;
+      draft.tradeAllowance = Math.max(0, Math.min(ceiling, Number(target.value) || 0));
       return true;
     }
     if (action === "sales:draftDown" && target instanceof HTMLInputElement) {
-      draft.downPayment = Number(target.value);
+      draft.downPayment = Math.max(0, Number(target.value) || 0);
       return true;
     }
     if (action === "sales:draftTerm" && target instanceof HTMLSelectElement) {
