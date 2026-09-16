@@ -411,6 +411,26 @@ export function recordHouseBrandShipment(state: GameState, model: VehicleModel):
   mc.lifetimeProfit += profit;
 }
 
+// A real OEM's parts and accessories division is typically one of its
+// highest-margin businesses, not just a byproduct of building cars — but
+// until now, a chartered Parts Warehouse and a founded Manufacturer Co. had
+// zero code-level connection: house-brand stores restocked at the
+// warehouse's discounted price same as any other franchise, and the
+// manufacturer never saw a cent of it. This is the OEM parts channel that
+// closes that gap, only realized once the group actually has a Parts
+// Warehouse chartered to run it through.
+export const OEM_PARTS_MARGIN_PER_UNIT = 15;
+
+/** Call once per month with however many parts units the group's house-brand stores restocked through a chartered Parts Warehouse — books Manufacturer Co.'s own margin on that parts volume, the same "OEM captures a cut too" pattern recordHouseBrandShipment already models for vehicles. */
+export function recordOemPartsMargin(state: GameState, units: number): void {
+  if (units <= 0) return;
+  const mc = state.manufacturerCo;
+  const profit = units * OEM_PARTS_MARGIN_PER_UNIT;
+  mc.cash += profit;
+  mc.profitThisMonth += profit;
+  mc.lifetimeProfit += profit;
+}
+
 /** Splits current production capacity evenly across every house-brand dealership right now — called both by the monthly cycle and immediately whenever a store newly joins the network, so a fresh store isn't stuck at zero allocation for up to a month waiting for the next cycle. */
 export function redistributeManufacturerCapacity(state: GameState): void {
   const mc = state.manufacturerCo;

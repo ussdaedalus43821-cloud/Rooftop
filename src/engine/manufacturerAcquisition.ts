@@ -25,7 +25,7 @@ import { Rng } from "../rng.js";
 import { postCashExpense } from "./financials.js";
 import { computeGroupNetWorth } from "./career.js";
 import { monthIndex } from "./clock.js";
-import { applyHouseBrandRelations, MAX_MANUFACTURER_MODELS, rebrandDealershipName, redistributeManufacturerCapacity } from "./manufacturerCo.js";
+import { applyHouseBrandRelations, MAX_MANUFACTURER_MODELS, OEM_PARTS_MARGIN_PER_UNIT, rebrandDealershipName, redistributeManufacturerCapacity } from "./manufacturerCo.js";
 
 // A teaser point, not an affordability point — same ratio to cost that
 // Manufacturer Co.'s own $40M unlock line carries against its $150M-$400M
@@ -207,6 +207,16 @@ export function recordAcquiredBrandShipment(state: GameState, model: VehicleMode
   am.unitsShippedThisMonth += 1;
   am.profitThisMonth += profit;
   am.lifetimeUnitsShipped += 1;
+  am.lifetimeProfit += profit;
+}
+
+/** Call once per month with however many parts units the group's factory-owned stores restocked through a chartered Parts Warehouse — books the acquired manufacturer's own margin on that parts volume, same OEM parts channel Manufacturer Co. runs (see manufacturerCo.js's recordOemPartsMargin). No-op once merged (a merged brand's parts margin already flows through Manufacturer Co. itself). */
+export function recordOemPartsMarginAcquired(state: GameState, units: number): void {
+  const am = state.acquiredManufacturer;
+  if (!am || !am.owned || am.mergedIntoOwnBrand || units <= 0) return;
+  const profit = units * OEM_PARTS_MARGIN_PER_UNIT;
+  am.cash += profit;
+  am.profitThisMonth += profit;
   am.lifetimeProfit += profit;
 }
 

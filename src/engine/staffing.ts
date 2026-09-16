@@ -3,6 +3,7 @@ import { STAFF_FIRST_NAMES, STAFF_LAST_NAMES } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
 import { postCashExpense, reverseDistribution } from "./financials.js";
+import { bayCost, effectiveBayHours, investInBay, MAX_BAYS, MAX_SERVICE_QUEUE, techCapacityHours } from "./service.js";
 
 const HIRE_COST: Record<SalesRole, number> = {
   salesperson: 1500,
@@ -186,13 +187,32 @@ export function giveRaise(d: Dealership, staffId: string): boolean {
   return true;
 }
 
+// A GM watching the shop run a permanent backlog for months on end doesn't
+// just shrug it off — they add a bay or bring on another tech, the same way
+// they already backfill a departed hire. "Chronic" means the queue is still
+// deep at month-end, not a single busy week: checked once a month, at the
+// same cadence the rest of a GM's staffing judgment already runs on, so it
+// takes a sustained squeeze (not a one-off spike) to trigger real spend.
+const SERVICE_BACKLOG_GROWTH_THRESHOLD = 0.85;
+
+// Real shops run something like 1-2 techs per bay; capping there means more
+// heads only helps once there's physical bay space to put them in, so a GM
+// facing a bay-bound shop expands bays first rather than stacking idle techs.
+const MAX_SERVICE_TECHS_PER_BAY = 1.5;
+
+export function maxServiceTechs(d: Dealership): number {
+  return Math.max(2, Math.ceil(d.service.bays * MAX_SERVICE_TECHS_PER_BAY));
+}
+
 export interface GmStaffManagementResult {
   trained: StaffMember[];
   raised: StaffMember[];
+  hiredServiceTechs: StaffMember[];
+  investedInBay: boolean;
 }
 
-export function applyGmStaffManagement(d: Dealership): GmStaffManagementResult {
-  if (!d.staff.some((s) => s.role === "gm")) return { trained: [], raised: [] };
+export function applyGmStaffManagement(d: Dealership, rng: Rng): GmStaffManagementResult {
+  if (!d.staff.some((s) => s.role === "gm")) return { trained: [], raised: [], hiredServiceTechs: [], investedInBay: false };
   const trained: StaffMember[] = [];
   const candidates = d.staff
     .filter((s) => s.role !== "gm" && s.skill < GM_TRAIN_SKILL_THRESHOLD)
@@ -211,7 +231,19 @@ export function applyGmStaffManagement(d: Dealership): GmStaffManagementResult {
     }
   }
 
-  return { trained, raised };
+  const hiredServiceTechs: StaffMember[] = [];
+  let investedInBay = false;
+  if (d.service.jobs.length >= MAX_SERVICE_QUEUE * SERVICE_BACKLOG_GROWTH_THRESHOLD) {
+    const bottleneckIsBays = effectiveBayHours(d) <= techCapacityHours(d);
+    if (bottleneckIsBays && d.service.bays < MAX_BAYS && d.ledger.cash - bayCost(d) >= d.autoSweepThreshold) {
+      if (investInBay(d)) investedInBay = true;
+    } else if (d.service.techs.length < maxServiceTechs(d) && d.ledger.cash - HIRE_COST.service_tech >= d.autoSweepThreshold) {
+      const hired = hireStaff(d, "service_tech", rng);
+      if (hired) hiredServiceTechs.push(hired);
+    }
+  }
+
+  return { trained, raised, hiredServiceTechs, investedInBay };
 }
 
 // Hiring a salesperson has never been bounded by anything but cash — a

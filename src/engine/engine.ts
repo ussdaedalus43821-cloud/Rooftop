@@ -12,8 +12,8 @@ import { monthlyManufacturerCycle } from "./manufacturer.js";
 import { monthlyCareerCycle, payOwnerDistribution } from "./career.js";
 import { monthlyCaptiveLenderCycle, originateCaptiveLoan } from "./captiveLender.js";
 import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.js";
-import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment } from "./manufacturerCo.js";
-import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment } from "./manufacturerAcquisition.js";
+import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment, recordOemPartsMargin } from "./manufacturerCo.js";
+import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment, recordOemPartsMarginAcquired } from "./manufacturerAcquisition.js";
 import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
 import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle, applyStaffCareerCycle } from "./staffing.js";
 import {
@@ -317,12 +317,18 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     }
   }
 
-  const gmResult = applyGmStaffManagement(d);
+  const gmResult = applyGmStaffManagement(d, rng);
   for (const member of gmResult.trained) {
     pushToast(state, `${d.name}: your GM sent ${member.name} for training — skill improved.`, "good");
   }
   for (const member of gmResult.raised) {
     pushToast(state, `${d.name}: your GM gave ${member.name} a raise to $${Math.round(member.monthlySalary * 12).toLocaleString()}/yr after a sustained run of earning it.`, "good");
+  }
+  for (const member of gmResult.hiredServiceTechs) {
+    pushToast(state, `${d.name}: your GM hired ${member.name} as a service tech — the shop's been backed up for too long.`, "good");
+  }
+  if (gmResult.investedInBay) {
+    pushToast(state, `${d.name}: your GM added a service bay to work through the backlog.`, "good");
   }
 
   for (const stat of Object.values(d.modelStats)) {
@@ -391,9 +397,14 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
 
   if (isNewMonth(state.day)) {
     let groupUnitsRestocked = 0;
+    let groupHouseBrandUnitsRestocked = 0;
+    let groupFactoryOwnedUnitsRestocked = 0;
     for (const id of Object.keys(state.dealerships)) {
       const d = state.dealerships[id];
-      groupUnitsRestocked += finalizeMonth(state, d, rng);
+      const unitsRestocked = finalizeMonth(state, d, rng);
+      groupUnitsRestocked += unitsRestocked;
+      if (d.isHouseBrand) groupHouseBrandUnitsRestocked += unitsRestocked;
+      else if (d.factoryOwned) groupFactoryOwnedUnitsRestocked += unitsRestocked;
       const justFinalized = d.monthlyHistory[d.monthlyHistory.length - 1];
       pushToast(
         state,
@@ -423,6 +434,14 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     monthlyPartsWarehouseCycle(state, groupUnitsRestocked);
     if (state.partsWarehouse.chartered && (state.partsWarehouse.lastMonthExternalProfit > 0 || state.partsWarehouse.lastMonthInternalSavings > 0)) {
       pushToast(state, `Parts Warehouse: saved your group $${Math.round(state.partsWarehouse.lastMonthInternalSavings).toLocaleString()} on restocking and earned $${Math.round(state.partsWarehouse.lastMonthExternalProfit).toLocaleString()} distributing to outside shops.`, "good");
+    }
+    // The warehouse is also the OEM parts channel for anything you
+    // manufacture yourself — only realized once it's actually chartered,
+    // same reasoning a real automaker's parts division runs through its own
+    // distribution network rather than selling direct to each store.
+    if (state.partsWarehouse.chartered) {
+      recordOemPartsMargin(state, groupHouseBrandUnitsRestocked);
+      recordOemPartsMarginAcquired(state, groupFactoryOwnedUnitsRestocked);
     }
 
     monthlyManufacturerCoCycle(state);

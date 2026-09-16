@@ -9,11 +9,11 @@ const TECH_HOURS_PER_DAY = 7;
 // work through — customers stop waiting and take the car elsewhere instead
 // of queuing forever, so new demand is turned away above the cap rather than
 // piling up without limit.
-const MAX_SERVICE_QUEUE = 150;
+export const MAX_SERVICE_QUEUE = 150;
 
 const BASE_BAY_COST = 18000;
 const BAY_COST_GROWTH = 1.2;
-const MAX_BAYS = 16;
+export const MAX_BAYS = 16;
 
 export function effectiveBayHours(d: Dealership): number {
   const reconLoad = d.vehicles.filter((v) => v.stage === "reconditioning").length;
@@ -117,6 +117,18 @@ function finalizeJob(d: Dealership, job: ServiceBayJob): void {
   const partsProfit = job.partsCost * partsMarkup;
   const grossProfit = laborRevenue + partsProfit;
   postGrossProfit(d, grossProfit);
+
+  // The parts this job used actually came off the shelf — until now nothing
+  // ever drew partsInventoryValue back down after restockParts() stocked it
+  // up, so a store that once hit its target stock level stayed "full"
+  // forever and restocking (and the warehouse economics/OEM parts margin
+  // that key off restocked volume) went permanently dormant. The customer
+  // pays cost + markup; the markup is the gross profit booked above, this
+  // is the cost-recovery leg — swap the consumed cost basis back into cash
+  // so inventory actually depletes with real usage.
+  const partsCostRecovered = Math.min(job.partsCost, d.ledger.partsInventoryValue);
+  d.ledger.partsInventoryValue -= partsCostRecovered;
+  d.ledger.cash += partsCostRecovered;
 
   if (job.kind === "warranty") {
     d.currentMonth.serviceGross += laborRevenue;
