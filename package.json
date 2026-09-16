@@ -7,9 +7,11 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "serve": "http-server . -p 8080 -c-1"
+    "serve": "http-server . -p 8080 -c-1",
+    "test:e2e": "tsc -p . && playwright test"
   },
   "devDependencies": {
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "@playwright/test": "^1.56.1"
   }
 }
