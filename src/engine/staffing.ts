@@ -2,7 +2,7 @@ import type { Dealership, GameState, SalesRole, StaffMember } from "../types.js"
 import { STAFF_FIRST_NAMES, STAFF_LAST_NAMES } from "../constants.js";
 import { Rng } from "../rng.js";
 import { nextId } from "../state.js";
-import { postCashExpense, injectCapital } from "./financials.js";
+import { postCashExpense, reverseDistribution } from "./financials.js";
 
 const HIRE_COST: Record<SalesRole, number> = {
   salesperson: 1500,
@@ -342,7 +342,7 @@ function affordEssentialHire(state: GameState, d: Dealership, cost: number): boo
   const shortfall = cost - d.ledger.cash;
   if (state.groupTreasury < shortfall) return false;
   state.groupTreasury -= shortfall;
-  injectCapital(d, shortfall);
+  reverseDistribution(d, shortfall);
   return true;
 }
 

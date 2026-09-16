@@ -87,10 +87,27 @@ export function distributeToOwner(d: Dealership, amount: number): void {
   d.ledger.retainedEarnings -= amount;
 }
 
-/** Cash into a store from its owner (e.g. out of the pooled group treasury) — a capital contribution, not revenue. */
-export function injectCapital(d: Dealership, amount: number): void {
+/**
+ * The reverse of distributeToOwner: cash moving back into a store from the
+ * owner (e.g. a treasury sweep being pulled back via a rescue, or a manual
+ * "deposit into this store" from the pooled Group Treasury). The treasury
+ * is this same owner's own cash held outside any one store's books, not
+ * fresh outside capital, so this restores retained earnings symmetrically
+ * with how distributeToOwner drew it down — the true mirror-image
+ * transaction. Crediting ownerEquityContributed instead (as this used to)
+ * meant every ordinary sweep-then-rescue round trip — routine cash-flow
+ * smoothing with zero real economic effect — permanently inflated
+ * "Owner Contributed" and cratered "Retained Earnings" by the same amount,
+ * even though total equity never moved: harmless to the balance invariant,
+ * but after years of autopilot it left the two lines individually
+ * meaningless (tens of millions apart) while netting to a modest true
+ * figure. Reserve a real capital-contribution entry for genuinely new
+ * money — a store's founding capital is set directly at creation, not
+ * through this helper.
+ */
+export function reverseDistribution(d: Dealership, amount: number): void {
   d.ledger.cash += amount;
-  d.ledger.ownerEquityContributed += amount;
+  d.ledger.retainedEarnings += amount;
 }
 
 export function restockParts(d: Dealership, cost: number): void {

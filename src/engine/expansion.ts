@@ -2,7 +2,7 @@ import type { CompetitorTarget, Dealership, FranchiseKey, GameState, StaffMember
 import { Rng } from "../rng.js";
 import { nextId, createDealership } from "../state.js";
 import { monthIndex } from "./clock.js";
-import { postCashExpense, financeAcquisition, totalAssets, totalLiabilities, distributeToOwner, injectCapital } from "./financials.js";
+import { postCashExpense, financeAcquisition, totalAssets, totalLiabilities, distributeToOwner, reverseDistribution } from "./financials.js";
 import { makeVehicle } from "./acquisition.js";
 import { BASE_SALARY } from "./staffing.js";
 import { applyFactoryOwnership } from "./manufacturerAcquisition.js";
@@ -271,7 +271,7 @@ export function transferFromTreasury(state: GameState, dealershipId: string, amo
   const d = state.dealerships[dealershipId];
   if (!d || amount <= 0 || state.groupTreasury < amount) return false;
   state.groupTreasury -= amount;
-  injectCapital(d, amount);
+  reverseDistribution(d, amount);
   return true;
 }
 
