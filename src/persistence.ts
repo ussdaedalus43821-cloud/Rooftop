@@ -3,6 +3,7 @@ import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
 import { newManufacturerCo } from "./engine/manufacturerCo.js";
 import { newEconomyState } from "./engine/economy.js";
+import { getFranchiseOption } from "./constants.js";
 
 const SAVE_KEY = "rooftop.save.v1";
 const MAX_SERVICE_QUEUE = 150;
@@ -60,6 +61,32 @@ function migrateState(state: GameState): GameState {
       if (s.meritStreak === undefined) s.meritStreak = 0;
       if (s.raisesReceived === undefined) s.raisesReceived = 0;
     }
+    // Corrects a bug where "Owner Contributed" and "Retained Earnings" could
+    // drift by equal, opposite amounts every time cash round-tripped through
+    // the pooled Group Treasury (a sweep out, later reversed by a rescue or
+    // manual deposit back in) — see reverseDistribution in financials.ts.
+    // Total equity was always correct (and still is here — this preserves
+    // it exactly); only the split between the two lines was getting
+    // corrupted, sometimes by tens of millions after years of autopilot.
+    // Every dealership's TRUE founding contribution is a fixed, still-known
+    // per-franchise constant, so the correct split is fully recoverable:
+    // reset Owner Contributed to that constant and let Retained Earnings
+    // absorb whatever's left of the (unchanged) total. Safe to reapply on
+    // every load — once corrected, this is a no-op forever after, since
+    // nothing writes to Owner Contributed except at a store's founding.
+    const trueContributed = getFranchiseOption(d.manufacturer.franchiseKey).startingOwnerEquity;
+    if (Math.abs(d.ledger.ownerEquityContributed - trueContributed) > 1) {
+      const totalEquityNow = d.ledger.ownerEquityContributed + d.ledger.retainedEarnings;
+      d.ledger.ownerEquityContributed = trueContributed;
+      d.ledger.retainedEarnings = totalEquityNow - trueContributed;
+      state.toasts.push({
+        id: `migrate_${d.id}_equitysplit`,
+        text: `${d.name}: corrected an accounting quirk that had thrown Owner Contributed and Retained Earnings off by equal, opposite amounts — total equity is unchanged.`,
+        kind: "info",
+        day: state.day,
+      });
+    }
+
     // One-time cleanup for saves from before the service queue was capped:
     // an unbounded backlog (retained customer base scaling demand forever
     // against a fixed bay count) could grow into the thousands. Keep the
