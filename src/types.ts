@@ -308,9 +308,10 @@ export interface RandomEventRecord {
   kind: RandomEventKind;
   headline: string;
   detail: string;
-  lossAmount: number; // 0 for a non-financial ripple like a compliance strike
+  lossAmount: number; // 0 for a non-financial ripple like a compliance strike; for an unresolved manufacturer_recall/compliance_fine notice, the "Pay Now" cost on offer
   insurancePayout: number; // 0 if uninsured or not an insurable event
   isRipple: boolean;
+  jobsToAdd?: number; // manufacturer_recall only, pre-rolled at trigger time so "Contest" queues the same count the notice described
 }
 
 /** A follow-up event scheduled for a later day when an earlier event's ripple roll hits — resolved by engine/randomEvents.ts once state.day reaches it. Not every event escalates; this only exists for the ones that rolled a real chance and hit. */

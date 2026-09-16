@@ -241,9 +241,20 @@ function trySlipAndFall(state: GameState, d: Dealership, rng: Rng, day: number):
 }
 
 // --- Manufacturer recall (political/regulatory, not insurable) ---------------
+//
+// Unlike the other event kinds, a recall doesn't resolve itself the moment it
+// fires — the player gets a real choice, same as a dealer actually does: pay
+// the manufacturer's rate to have it expedited (fast, costs cash, never
+// touches your own shop or CSI), or run it through your own service queue for
+// free and gamble on clearing the backlog before the manufacturer comes back
+// to check (the same compliance-strike risk this used to apply automatically).
+// tryManufacturerRecall only rolls the numbers and returns an unresolved
+// notice; resolveManufacturerRecallChoice (called once the player picks) does
+// the actual work and is the only place that writes to eventLog for it.
 
 const RECALL_CHANCE = 0.00002;
 const RECALL_JOBS = [5, 15] as const;
+const RECALL_EXPEDITE_COST_PER_JOB = [180, 350] as const;
 const RECALL_CSI_HIT = 2;
 const RECALL_QUEUE_ESCALATION_THRESHOLD = 0.7;
 
@@ -251,6 +262,28 @@ function tryManufacturerRecall(state: GameState, d: Dealership, rng: Rng, day: n
   if (d.isHouseBrand || d.factoryOwned || d.isUsedOnly) return null; // no real manufacturer relationship to issue one
   if (!rng.chance(RECALL_CHANCE)) return null;
   const jobsToAdd = Math.min(rng.int(...RECALL_JOBS), Math.max(0, MAX_SERVICE_QUEUE - d.service.jobs.length));
+  const expediteCost = Math.round(jobsToAdd * rng.range(...RECALL_EXPEDITE_COST_PER_JOB));
+  return {
+    day, dealershipId: d.id, dealershipName: d.name, kind: "manufacturer_recall",
+    headline: `${d.name}: a manufacturer recall just landed.`,
+    detail: `${jobsToAdd} vehicles need recall work. Pay the manufacturer's rate to have it expedited now, or run it through your own shop for free and risk a compliance strike if the backlog isn't cleared before they check back.`,
+    lossAmount: expediteCost, insurancePayout: 0, isRipple: false, jobsToAdd,
+  };
+}
+
+/** Resolves a manufacturer_recall notice once the player picks "pay" (expedite) or "contest" (run it through the shop and gamble on the backlog) — the only place that applies the recall's real consequences and logs the outcome. */
+export function resolveManufacturerRecallChoice(state: GameState, event: RandomEventRecord, choice: "pay" | "contest", rng: Rng): void {
+  const d = state.dealerships[event.dealershipId];
+  if (!d) return;
+  const day = event.day;
+  if (choice === "pay") {
+    postCashExpense(d, event.lossAmount);
+    logEvent(state, d, day, "manufacturer_recall", `${d.name}: paid to expedite a manufacturer recall.`,
+      `Paid ${money(event.lossAmount)} to have the manufacturer's own team expedite the recall — it never touched your shop or your CSI score.`,
+      event.lossAmount, 0, false);
+    return;
+  }
+  const jobsToAdd = event.jobsToAdd ?? 0;
   for (let i = 0; i < jobsToAdd; i++) {
     d.service.jobs.push({
       id: `recall_${d.id}_${day}_${i}`,
@@ -263,12 +296,10 @@ function tryManufacturerRecall(state: GameState, d: Dealership, rng: Rng, day: n
     });
   }
   d.manufacturer.csi = clamp(d.manufacturer.csi - RECALL_CSI_HIT, 0, 100);
-  const record = logEvent(state, d, day, "manufacturer_recall",
-    `${d.name}: a manufacturer recall just landed.`,
+  logEvent(state, d, day, "manufacturer_recall", `${d.name}: a manufacturer recall hit the service queue.`,
     `${jobsToAdd} recall repairs hit the service queue — customers won't be thrilled, and the manufacturer expects them cleared promptly.`,
     0, 0, false);
   scheduleRipple(state, d, day, 20, 30, "recall_compliance_strike", rng);
-  return record;
 }
 
 function resolveRecallCompliance(state: GameState, d: Dealership, day: number): RandomEventRecord | null {
@@ -282,6 +313,15 @@ function resolveRecallCompliance(state: GameState, d: Dealership, day: number): 
 }
 
 // --- Regulatory compliance fine (political, not insurable) -------------------
+//
+// Same deferred-choice shape as the recall: tryComplianceFine only rolls the
+// fine and returns an unresolved notice. Paying immediately closes the case
+// for the sticker amount and nothing more; contesting is a real gamble — a
+// real (not guaranteed) chance the citation gets dismissed outright, against
+// a real chance it comes back bigger, with a compliance strike for having
+// pushed back and lost. A store already running hot on strikes or a weak CSI
+// score has worse odds contesting, same as its franchise standing already
+// does elsewhere.
 
 const COMPLIANCE_FINE_CHANCE = 0.000015;
 const COMPLIANCE_FINE_RANGE = [1500, 8000] as const;
@@ -290,20 +330,39 @@ const COMPLIANCE_FINE_ESCALATION_MULT = 2.2;
 function tryComplianceFine(state: GameState, d: Dealership, rng: Rng, day: number): RandomEventRecord | null {
   if (!rng.chance(COMPLIANCE_FINE_CHANCE)) return null;
   const fine = Math.round(rng.range(...COMPLIANCE_FINE_RANGE));
-  postCashExpense(d, fine);
-  const record = logEvent(state, d, day, "compliance_fine",
-    `${d.name}: a routine compliance audit found a paperwork lapse.`,
-    `State title/registration audit — ${money(fine)} fine, no coverage applies to regulatory penalties.`,
-    fine, 0, false);
+  return {
+    day, dealershipId: d.id, dealershipName: d.name, kind: "compliance_fine",
+    headline: `${d.name}: a routine compliance audit found a paperwork lapse.`,
+    detail: `State title/registration audit found a lapse — a ${money(fine)} fine, uninsurable. Pay it now to close the case, or contest it and risk a bigger penalty (and a compliance strike) if you lose.`,
+    lossAmount: fine, insurancePayout: 0, isRipple: false,
+  };
+}
 
-  // A store already running hot on compliance strikes or a weak CSI score
-  // is a likelier target for a harder follow-up look — the same stats a
-  // franchise's own standing already depends on.
-  const riskFactor = clamp(0.5 + d.manufacturer.complianceStrikes * 0.15 + (60 - d.manufacturer.csi) / 100, 0.3, 1.5);
-  if (rng.chance(0.15 * riskFactor)) {
-    scheduleRipple(state, d, day, 15, 25, "compliance_fine_escalation", rng, Math.round(fine * COMPLIANCE_FINE_ESCALATION_MULT));
+/** Resolves a compliance_fine notice once the player picks "pay" (closes the case for the sticker amount) or "contest" (a real chance of dismissal against a real chance of a bigger, strike-carrying penalty). */
+export function resolveComplianceFineChoice(state: GameState, event: RandomEventRecord, choice: "pay" | "contest", rng: Rng): void {
+  const d = state.dealerships[event.dealershipId];
+  if (!d) return;
+  const day = event.day;
+  if (choice === "pay") {
+    postCashExpense(d, event.lossAmount);
+    logEvent(state, d, day, "compliance_fine", `${d.name}: paid a compliance fine in full.`,
+      `Paid the ${money(event.lossAmount)} fine in full and promptly — the case is closed, no further review.`,
+      event.lossAmount, 0, false);
+    return;
   }
-  return record;
+  const winChance = clamp(0.55 - d.manufacturer.complianceStrikes * 0.08 - Math.max(0, 60 - d.manufacturer.csi) / 150, 0.15, 0.65);
+  if (rng.chance(winChance)) {
+    logEvent(state, d, day, "compliance_fine", `${d.name}: contested a compliance fine and won.`,
+      `Contested the fine and won — the citation was dismissed outright.`,
+      0, 0, false);
+    return;
+  }
+  const penalty = Math.round(event.lossAmount * COMPLIANCE_FINE_ESCALATION_MULT);
+  postCashExpense(d, penalty);
+  d.manufacturer.complianceStrikes += 1;
+  logEvent(state, d, day, "compliance_fine_escalation", `${d.name}: contested a compliance fine and lost.`,
+    `Contested the fine and lost — ${money(penalty)} with penalties, plus a compliance strike for pushing back.`,
+    penalty, 0, false);
 }
 
 // --- Daily orchestration -----------------------------------------------------
@@ -370,11 +429,6 @@ function resolveRipple(state: GameState, d: Dealership, rng: Rng, day: number, k
     }
     case "recall_compliance_strike":
       return resolveRecallCompliance(state, d, day);
-    case "compliance_fine_escalation": {
-      const amount = lossAmount ?? 5000;
-      postCashExpense(d, amount);
-      return logEvent(state, d, day, kind, `${d.name}: the compliance audit escalated to a formal fine.`, `A follow-up review found more than the first pass — ${money(amount)} additional fine.`, amount, 0, true);
-    }
     default:
       return null;
   }

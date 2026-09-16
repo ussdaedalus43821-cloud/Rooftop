@@ -6,6 +6,7 @@ import { totalAssets, totalLiabilities } from "../engine/financials.js";
 import { pushToast, monthToDateNetIncome } from "../engine/engine.js";
 import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
+import { resolveManufacturerRecallChoice, resolveComplianceFineChoice } from "../engine/randomEvents.js";
 import { createNewGame } from "../state.js";
 import { clearSave, saveGame } from "../persistence.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
@@ -263,6 +264,8 @@ const EVENT_KIND_TITLE: Partial<Record<string, string>> = {
   compliance_fine: "Compliance Fine",
 };
 
+const EVENT_CHOICE_KINDS = new Set(["manufacturer_recall", "compliance_fine"]);
+
 function renderEventModal(): string {
   if (!ctx || ctx.state.pendingEventModal.length === 0) return "";
   const event = ctx.state.pendingEventModal[0];
@@ -271,6 +274,27 @@ function renderEventModal(): string {
   const netImpact = event.lossAmount - event.insurancePayout;
   const refNumber = `${String(event.day).padStart(5, "0")}-${event.kind.slice(0, 3).toUpperCase()}`;
   const signed = eventSignatureDraft.trim().length > 0;
+  const isChoice = EVENT_CHOICE_KINDS.has(event.kind);
+  const remainingSuffix = remaining > 0 ? ` (${remaining} more)` : "";
+
+  const footer = isChoice
+    ? `
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px;">
+        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This is a formal response to the manufacturer/regulator, entered into the record — choose how to proceed.</label>
+        <div class="btn-row">
+          <button class="btn btn-primary" data-action="event:choice" data-choice="pay">Pay Now — ${money(event.lossAmount)}${remainingSuffix}</button>
+          <button class="btn btn-bad" data-action="event:choice" data-choice="contest">Contest It${remainingSuffix}</button>
+        </div>
+      </div>`
+    : `
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px;">
+        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This notice has been entered into the record. Sign below to approve and file it.</label>
+        <div class="btn-row">
+          <input type="text" placeholder="Sign your name to approve" value="${escapeHtml(eventSignatureDraft)}" data-action="event:setSignature" style="flex:1;font-style:italic;background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:13px;" maxlength="40" />
+          <button class="btn btn-primary" data-action="event:acknowledge" ${signed ? "" : "disabled"}>Approve &amp; File${remainingSuffix}</button>
+        </div>
+      </div>`;
+
   return `
   <div class="modal-backdrop">
     <div class="modal">
@@ -286,19 +310,13 @@ function renderEventModal(): string {
         </div>
       </div>
       <p>${escapeHtml(event.detail)}</p>
-      ${event.lossAmount > 0 ? `
+      ${!isChoice && event.lossAmount > 0 ? `
       <div class="grid grid-cols-3" style="margin-top:4px;">
         <div><div class="text-faint" style="font-size:11px;">Loss</div><div class="mono text-bad">${money(event.lossAmount)}</div></div>
         <div><div class="text-faint" style="font-size:11px;">Insurance Paid</div><div class="mono ${event.insurancePayout > 0 ? "text-good" : ""}">${event.insurancePayout > 0 ? money(event.insurancePayout) : "—"}</div></div>
         <div><div class="text-faint" style="font-size:11px;">Net Impact</div><div class="mono text-bad">${money(netImpact)}</div></div>
       </div>` : ""}
-      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px;">
-        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This notice has been entered into the record. Sign below to approve and file it.</label>
-        <div class="btn-row">
-          <input type="text" placeholder="Sign your name to approve" value="${escapeHtml(eventSignatureDraft)}" data-action="event:setSignature" style="flex:1;font-style:italic;background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:7px 9px;border-radius:6px;font-size:13px;" maxlength="40" />
-          <button class="btn btn-primary" data-action="event:acknowledge" ${signed ? "" : "disabled"}>Approve &amp; File${remaining > 0 ? ` (${remaining} more)` : ""}</button>
-        </div>
-      </div>
+      ${footer}
     </div>
   </div>`;
 }
@@ -358,6 +376,21 @@ function onClick(e: MouseEvent): void {
   if (action === "event:acknowledge") {
     if (eventSignatureDraft.trim().length === 0) return;
     ctx.state.pendingEventModal.shift();
+    render();
+    return;
+  }
+  if (action === "event:choice") {
+    const event = ctx.state.pendingEventModal[0];
+    const choice = target.getAttribute("data-choice") as "pay" | "contest" | null;
+    if (event && choice) {
+      if (event.kind === "manufacturer_recall") {
+        resolveManufacturerRecallChoice(ctx.state, event, choice, ctx.rng);
+      } else if (event.kind === "compliance_fine") {
+        resolveComplianceFineChoice(ctx.state, event, choice, ctx.rng);
+      }
+      ctx.state.pendingEventModal.shift();
+      ctx.markDirty();
+    }
     render();
     return;
   }
