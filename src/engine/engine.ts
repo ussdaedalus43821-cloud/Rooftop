@@ -130,7 +130,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
   // empty by the end of the day.
   const randomEvent = dailyRandomEventCheck(state, d, rng, state.day);
   if (randomEvent) {
-    pushToast(state, randomEvent.headline, randomEvent.insurancePayout > 0 ? "warn" : "bad");
+    state.pendingEventModal.push(randomEvent);
   }
 
   if (d.autoPilot.sales) {
@@ -407,8 +407,13 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     pushToast(state, `${takeoverTick.lost.rivalName} forced the sale of ${takeoverTick.lost.dealershipName} for $${Math.round(takeoverTick.lost.forcedPrice).toLocaleString()} — well below what it was worth.`, "bad");
   }
 
+  // A primary event (not a ripple) is rare enough, and genuinely
+  // surprising enough, to earn the same "you have to look at this" modal
+  // treatment as a career milestone — a toast alone is too easy to miss at
+  // higher speeds. Ripples are a continuation of a story the player already
+  // saw the modal for, so they stay a toast.
   for (const weatherEvent of dailyWeatherCheck(state, rng, state.day)) {
-    pushToast(state, weatherEvent.headline, "warn");
+    state.pendingEventModal.push(weatherEvent);
   }
   for (const ripple of resolveScheduledRipples(state, rng, state.day)) {
     pushToast(state, ripple.headline, ripple.lossAmount > 0 || ripple.kind === "recall_compliance_strike" ? "bad" : "warn");

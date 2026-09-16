@@ -142,6 +142,7 @@ export function render(): void {
   const speedHtml = speeds.map((s) => `<button class="speed-btn ${state.speed === s.v ? "active" : ""}" data-action="global:setSpeed" data-speed="${s.v}">${s.label}</button>`).join("");
 
   const milestoneHtml = renderMilestoneModal();
+  const eventModalHtml = renderEventModal();
   const gameOverHtml = renderGameOver();
 
   rootEl.innerHTML = `
@@ -167,6 +168,7 @@ export function render(): void {
     <div class="tab-content">${activeTabModule().render(ctx!)}</div>
     ${notificationsPanelOpen ? renderNotificationPanel(state) : ""}
     ${milestoneHtml}
+    ${eventModalHtml}
     ${gameOverHtml}
   `;
 }
@@ -250,6 +252,40 @@ function renderMilestoneModal(): string {
   </div>`;
 }
 
+const EVENT_KIND_TITLE: Partial<Record<string, string>> = {
+  test_drive_collision: "Test-Drive Collision",
+  hailstorm: "Hailstorm",
+  lot_theft: "Lot Theft",
+  service_bay_mishap: "Service Bay Mishap",
+  slip_and_fall: "Slip-and-Fall Claim",
+  manufacturer_recall: "Manufacturer Recall",
+  compliance_fine: "Compliance Fine",
+};
+
+function renderEventModal(): string {
+  if (!ctx || ctx.state.pendingEventModal.length === 0) return "";
+  const event = ctx.state.pendingEventModal[0];
+  const remaining = ctx.state.pendingEventModal.length - 1;
+  const title = EVENT_KIND_TITLE[event.kind] ?? "Incident";
+  const netImpact = event.lossAmount - event.insurancePayout;
+  return `
+  <div class="modal-backdrop">
+    <div class="modal">
+      <h2>${escapeHtml(title)} — ${escapeHtml(event.dealershipName)}</h2>
+      <p>${escapeHtml(event.detail)}</p>
+      ${event.lossAmount > 0 ? `
+      <div class="grid grid-cols-3" style="margin-top:4px;">
+        <div><div class="text-faint" style="font-size:11px;">Loss</div><div class="mono text-bad">${money(event.lossAmount)}</div></div>
+        <div><div class="text-faint" style="font-size:11px;">Insurance Paid</div><div class="mono ${event.insurancePayout > 0 ? "text-good" : ""}">${event.insurancePayout > 0 ? money(event.insurancePayout) : "—"}</div></div>
+        <div><div class="text-faint" style="font-size:11px;">Net Impact</div><div class="mono text-bad">${money(netImpact)}</div></div>
+      </div>` : ""}
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-primary" data-action="event:acknowledge">Got it${remaining > 0 ? ` (${remaining} more)` : ""}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderGameOver(): string {
   if (!ctx || !ctx.state.gameOver) return "";
   const go = ctx.state.gameOver;
@@ -299,6 +335,11 @@ function onClick(e: MouseEvent): void {
       pushToast(ctx.state, "Founded your own rooftop — you own it outright.", "good");
     }
     ctx.markDirty();
+    render();
+    return;
+  }
+  if (action === "event:acknowledge") {
+    ctx.state.pendingEventModal.shift();
     render();
     return;
   }

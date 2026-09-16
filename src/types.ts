@@ -534,4 +534,5 @@ export interface GameState {
   takeoverThreat: TakeoverThreat | null;
   eventLog: RandomEventRecord[]; // capped rolling history of fired random events/ripples, most recent last
   scheduledRipples: ScheduledRipple[];
+  pendingEventModal: RandomEventRecord[]; // primary random events awaiting player acknowledgment — a genuine "this just happened" moment, not just a toast; the tick loop gates on this the same non-destructive way it gates on a pending career milestone
 }

@@ -237,5 +237,6 @@ export function createNewGame(seed: number = Date.now(), franchiseKey: Franchise
     takeoverThreat: null,
     eventLog: [],
     scheduledRipples: [],
+    pendingEventModal: [],
   };
 }
