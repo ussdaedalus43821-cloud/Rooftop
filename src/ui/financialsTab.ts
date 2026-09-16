@@ -2,6 +2,7 @@ import type { TabModule } from "./types.js";
 import { money } from "./format.js";
 import { checkInvariant, totalAssets, totalEquity, totalLiabilities } from "../engine/financials.js";
 import { netWorthStanding, computeGroupNetWorth } from "../engine/career.js";
+import { renderNetIncomeChart, renderGrossProfitChart } from "./charts.js";
 
 export const financialsTab: TabModule = {
   key: "financials",
@@ -95,6 +96,18 @@ export const financialsTab: TabModule = {
         </table></div>
       </div>`;
 
+    const trendsCard = `
+      <div class="grid grid-cols-2">
+        <div class="card">
+          <h3>Monthly Net Income</h3>
+          ${renderNetIncomeChart(d.monthlyHistory)}
+        </div>
+        <div class="card">
+          <h3>Gross Profit by Department</h3>
+          ${renderGrossProfitChart(d.monthlyHistory)}
+        </div>
+      </div>`;
+
     const equityStoreName = career.role === "partial_owner" && career.equityDealershipId
       ? ctx.state.dealerships[career.equityDealershipId]?.name
       : undefined;
@@ -109,6 +122,6 @@ export const financialsTab: TabModule = {
         </div>
       </div>`;
 
-    return `${empireCard}${balanceSheet}<div class="section-title">Profit &amp; Loss</div>${plTable}<div class="section-title">Career</div>${careerCard}`;
+    return `${empireCard}${balanceSheet}<div class="section-title">Profit &amp; Loss</div>${plTable}<div class="section-title">Trends</div>${trendsCard}<div class="section-title">Career</div>${careerCard}`;
   },
 };
