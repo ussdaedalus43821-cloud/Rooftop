@@ -13,6 +13,7 @@ import {
   newRooftopCost,
   transferToTreasury,
   transferFromTreasury,
+  dealershipCountAtCap,
   type FundingSource,
 } from "../engine/expansion.js";
 import { charterCaptiveLender, charterCaptiveLenderCost, sweepCaptiveLenderCash, type CaptiveLenderFunding } from "../engine/captiveLender.js";
@@ -66,7 +67,7 @@ import {
 } from "../engine/manufacturerAcquisition.js";
 import { defendTakeover, type TakeoverDefenseFunding } from "../engine/hostileTakeover.js";
 import { pushToast, monthToDateGrossProfit, monthToDateNetIncome } from "../engine/engine.js";
-import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
+import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption, MAX_DEALERSHIPS } from "../constants.js";
 import { escapeHtml } from "./app.js";
 
 let treasuryAmountDraft = 10000;
@@ -192,6 +193,13 @@ export const overviewTab: TabModule = {
       </div>` : "";
 
     const buildRooftopCard = ctx.state.career.role === "gm" ? "" : (() => {
+      if (dealershipCountAtCap(ctx.state)) {
+        return `
+        <div class="card">
+          <h3>Build a New Rooftop</h3>
+          <p class="text-faint" style="font-size:11.5px;">Your group is at its ${MAX_DEALERSHIPS}-store maximum — capped so every dealership's full state stays manageable to save and simulate. Growth from here means reinvesting in the stores you already own: facility standards, service capacity, staffing, and your own manufacturing lineup.</p>
+        </div>`;
+      }
       const brandChoices = buildCategory ? franchisesInCategory(buildCategory) : [];
       const selectedBrand = buildBrand ? getFranchiseOption(buildBrand) : null;
       const cost = selectedBrand ? newRooftopCost(selectedBrand.key) : 0;
@@ -358,6 +366,7 @@ export const overviewTab: TabModule = {
         </div>`;
       }
 
+      const atCap = dealershipCountAtCap(ctx.state);
       const newStoreCost = houseBrandNewStoreCost();
       const conversionCost = houseBrandConversionCost();
       const rndCost = rAndDCost(ctx.state);
@@ -403,20 +412,22 @@ export const overviewTab: TabModule = {
       </div>
       <div class="card">
         <h3>Grow The ${escapeHtml(mc.brandName)} Network</h3>
+        ${atCap ? `<p class="text-faint" style="font-size:11.5px;margin-bottom:8px;">Your group is at its ${MAX_DEALERSHIPS}-store maximum, so opening another rooftop isn't an option — converting a store you already own is.</p>` : ""}
         <div class="btn-row">
-          <button class="btn btn-primary" data-action="overview:foundHouseBrandStore" ${d.ledger.cash < newStoreCost ? "disabled" : ""}>Open A New ${escapeHtml(mc.brandName)} Store (${money(newStoreCost)}, from ${escapeHtml(d.name)})</button>
+          <button class="btn btn-primary" data-action="overview:foundHouseBrandStore" ${atCap || d.ledger.cash < newStoreCost ? "disabled" : ""}>${atCap ? "At Store Maximum" : `Open A New ${escapeHtml(mc.brandName)} Store (${money(newStoreCost)}, from ${escapeHtml(d.name)})`}</button>
           <button class="btn" data-action="overview:convertToHouseBrand" ${d.isHouseBrand || d.ledger.cash < conversionCost ? "disabled" : ""}>${d.isHouseBrand ? `${escapeHtml(d.name)} Already Sells ${escapeHtml(mc.brandName)}` : `Convert ${escapeHtml(d.name)} To ${escapeHtml(mc.brandName)} (${money(conversionCost)})`}</button>
         </div>
       </div>`;
     })();
 
     const expansionCard = ctx.state.career.role === "gm" ? "" : (() => {
-      const targets = acquisitionTargetsForMonth(ctx.state, ctx.rng);
+      const atCap = dealershipCountAtCap(ctx.state);
+      const targets = atCap ? [] : acquisitionTargetsForMonth(ctx.state, ctx.rng);
       return `
       <div class="card">
         <h3>Acquire a Competitor</h3>
         <p class="text-faint" style="font-size:11.5px;">Independent rooftops come up for sale from time to time — buy one outright and it folds into your group already stocked and staffed, no starting from scratch. New listings roll in monthly.</p>
-        ${targets.length === 0 ? '<div class="list-empty">Nothing on the market right now — check back next month.</div>' : `
+        ${atCap ? `<div class="list-empty">Your group is at its ${MAX_DEALERSHIPS}-store maximum — sell a store to free up a slot, or reinvest in what you have.</div>` : targets.length === 0 ? '<div class="list-empty">Nothing on the market right now — check back next month.</div>' : `
         <div class="table-wrap"><table>
           <thead><tr><th>Rooftop</th><th>Brand</th><th>Size</th><th class="num">Vehicles</th><th class="num">Staff</th><th class="num">Reputation</th><th class="num">CSI</th><th class="num">Asking Price</th><th></th></tr></thead>
           <tbody>

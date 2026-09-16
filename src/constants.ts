@@ -15,6 +15,17 @@ export const MONTHS_FOR_OWNERSHIP_OFFER = 6;
 export const CSI_TERMINATION_THRESHOLD = 55;
 export const QUOTA_TERMINATION_MONTHS = 4;
 
+// A save that keeps growing store count without bound eventually runs into
+// two real ceilings at once: localStorage has to hold every one of those
+// dealerships' full state on every write, and a full day's simulation pass
+// runs once per store, so wall-clock speed degrades with headcount (a
+// 27-year stress test measured throughput falling from ~2,800 to ~19
+// simulated days/sec as the group grew past 800 stores). Capping the group
+// at a manageable size turns growth into a reinvestment problem instead —
+// once you're here, the lever left is making the stores you already own
+// better, not buying/building the next one.
+export const MAX_DEALERSHIPS = 8;
+
 export interface FranchiseModelSeed {
   name: string;
   trim: string;

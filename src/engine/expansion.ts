@@ -6,9 +6,13 @@ import { postCashExpense, financeAcquisition, totalAssets, totalLiabilities, dis
 import { makeVehicle } from "./acquisition.js";
 import { BASE_SALARY } from "./staffing.js";
 import { applyFactoryOwnership } from "./manufacturerAcquisition.js";
-import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS, FRANCHISE_OPTIONS, STAFF_FIRST_NAMES, STAFF_LAST_NAMES, getFranchiseOption } from "../constants.js";
+import { ALL_FRANCHISE_MODELS, FRANCHISE_CATALOGS, FRANCHISE_OPTIONS, MAX_DEALERSHIPS, STAFF_FIRST_NAMES, STAFF_LAST_NAMES, getFranchiseOption } from "../constants.js";
 
 const TARGETS_PER_MONTH = 3;
+
+export function dealershipCountAtCap(state: GameState): boolean {
+  return Object.keys(state.dealerships).length >= MAX_DEALERSHIPS;
+}
 
 interface SizeTierSpec {
   vehicles: [number, number];
@@ -141,6 +145,7 @@ export interface AcquireResult {
 /** Buy a competitor dealership outright, paid in cash from the buying store, folding it into the player's group as a new, already-established rooftop. */
 export function buyCompetitorDealership(state: GameState, buyerDealershipId: string, targetId: string, rng: Rng): AcquireResult {
   if (state.career.role === "gm") return { ok: false, reason: "Become an owner before acquiring other dealerships." };
+  if (dealershipCountAtCap(state)) return { ok: false, reason: `Your group already owns the maximum of ${MAX_DEALERSHIPS} dealerships — reinvest in the stores you have instead.` };
   const buyer = state.dealerships[buyerDealershipId];
   if (!buyer) return { ok: false, reason: "Dealership not found." };
   const targets = acquisitionTargetsForMonth(state, rng);
@@ -178,6 +183,7 @@ export type FundingSource = "active" | "treasury";
  */
 export function buildNewRooftop(state: GameState, funding: FundingSource, payerDealershipId: string, franchiseKey: FranchiseKey, rng: Rng): AcquireResult {
   if (state.career.role === "gm") return { ok: false, reason: "Become an owner before opening another rooftop." };
+  if (dealershipCountAtCap(state)) return { ok: false, reason: `Your group already owns the maximum of ${MAX_DEALERSHIPS} dealerships — reinvest in the stores you have instead.` };
   const cost = newRooftopCost(franchiseKey);
 
   if (funding === "treasury") {

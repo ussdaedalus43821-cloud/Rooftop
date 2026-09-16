@@ -14,6 +14,7 @@ import type { Dealership, FranchiseCategory, FranchiseKey, GameState, Manufactur
 import { Rng } from "../rng.js";
 import { createDealership, nextId } from "../state.js";
 import { postCashExpense } from "./financials.js";
+import { MAX_DEALERSHIPS } from "../constants.js";
 import { computeGroupNetWorth } from "./career.js";
 import { monthIndex } from "./clock.js";
 
@@ -289,6 +290,9 @@ export function houseBrandNewStoreCost(): number {
 export function foundHouseBrandDealership(state: GameState, funding: ManufacturerCoFunding, payerDealershipId: string, rng: Rng): OpenStoreResult {
   const mc = state.manufacturerCo;
   if (!mc.founded) return { ok: false, reason: "Found your manufacturer first." };
+  if (Object.keys(state.dealerships).length >= MAX_DEALERSHIPS) {
+    return { ok: false, reason: `Your group already owns the maximum of ${MAX_DEALERSHIPS} dealerships — convert an existing store to ${mc.brandName} instead.` };
+  }
 
   if (funding === "treasury") {
     if (state.groupTreasury < NEW_STORE_COST) return { ok: false, reason: "Not enough in the group treasury." };
