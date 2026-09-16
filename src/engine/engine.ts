@@ -346,6 +346,12 @@ export function advanceOneDay(state: GameState, rng: Rng): void {
     const targetName = state.dealerships[t.targetDealershipId]?.name ?? "a dealership";
     const scopeText = t.scope === "group" ? "is making a play for your flagship store" : "is circling one of your weaker stores";
     pushToast(state, `${t.rivalName} ${scopeText}, ${targetName} — defend it for $${Math.round(t.defendCost).toLocaleString()} or lose it to a forced sale in ${t.deadlineDay - t.startDay} days.`, "warn");
+    // Losing a whole dealership to a missed toast at 15x speed is a much
+    // worse outcome than the interruption of pausing — same reasoning
+    // behind pausing for the ownership milestone, and arguably higher
+    // stakes here since this one's on a real clock and fully reversible
+    // only if the player actually notices in time.
+    state.speed = 0;
   }
   if (takeoverTick.lost) {
     pushToast(state, `${takeoverTick.lost.rivalName} forced the sale of ${takeoverTick.lost.dealershipName} for $${Math.round(takeoverTick.lost.forcedPrice).toLocaleString()} — well below what it was worth.`, "bad");

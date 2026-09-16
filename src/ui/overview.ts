@@ -574,6 +574,9 @@ export const overviewTab: TabModule = {
       ${buildRooftopCard}
     `;
   },
+  hasAlert(ctx) {
+    return !!ctx.state.takeoverThreat;
+  },
   onAction(ctx, action, target) {
     if (action === "overview:buyCompetitor") {
       const targetId = target.getAttribute("data-target")!;
