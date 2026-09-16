@@ -3,6 +3,7 @@ import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
 import { newManufacturerCo } from "./engine/manufacturerCo.js";
 import { newEconomyState } from "./engine/economy.js";
+import { newInsuranceState } from "./engine/insurance.js";
 import { getFranchiseOption } from "./constants.js";
 
 const SAVE_KEY = "rooftop.save.v1";
@@ -52,6 +53,8 @@ function migrateState(state: GameState): GameState {
     if (d.currentMonth.incomeTaxExpense === undefined) d.currentMonth.incomeTaxExpense = 0;
     if (d.currentMonth.holdbackIncome === undefined) d.currentMonth.holdbackIncome = 0;
     if (d.currentMonth.chargebackExpense === undefined) d.currentMonth.chargebackExpense = 0;
+    if (d.currentMonth.insurancePremiumExpense === undefined) d.currentMonth.insurancePremiumExpense = 0;
+    if (!d.insurance) d.insurance = newInsuranceState();
     for (const m of d.monthlyHistory) {
       if (m.incentiveExpense === undefined) m.incentiveExpense = 0;
       if (m.occupancyExpense === undefined) m.occupancyExpense = 0;
@@ -60,6 +63,7 @@ function migrateState(state: GameState): GameState {
       if (m.incomeTaxExpense === undefined) m.incomeTaxExpense = 0;
       if (m.holdbackIncome === undefined) m.holdbackIncome = 0;
       if (m.chargebackExpense === undefined) m.chargebackExpense = 0;
+      if (m.insurancePremiumExpense === undefined) m.insurancePremiumExpense = 0;
     }
     for (const s of d.staff) {
       if (s.incentivesThisMonth === undefined) s.incentivesThisMonth = 0;

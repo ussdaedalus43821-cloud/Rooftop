@@ -17,6 +17,7 @@ import { fiTab } from "./fiTab.js";
 import { serviceTab } from "./serviceTab.js";
 import { employeeTab } from "./employeeTab.js";
 import { manufacturerTab } from "./manufacturerTab.js";
+import { insuranceTab } from "./insuranceTab.js";
 import { financialsTab } from "./financialsTab.js";
 import { settingsTab } from "./settingsTab.js";
 
@@ -28,6 +29,7 @@ const TABS: TabModule[] = [
   serviceTab,
   employeeTab,
   manufacturerTab,
+  insuranceTab,
   financialsTab,
   settingsTab,
 ];

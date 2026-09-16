@@ -15,6 +15,7 @@ import { monthlyPartsWarehouseCycle, partsUnitCostFor } from "./partsWarehouse.j
 import { liveHouseBrandCatalog, monthlyManufacturerCoCycle, recordHouseBrandShipment, recordOemPartsMargin } from "./manufacturerCo.js";
 import { monthlyAcquiredManufacturerCycle, recordAcquiredBrandShipment, recordOemPartsMarginAcquired } from "./manufacturerAcquisition.js";
 import { autoRescueDealership, autoSweepDealership } from "./expansion.js";
+import { monthlyInsuranceCycle } from "./insurance.js";
 import { applyGmStaffManagement, applyMonthlyIncentives, applyMonthlyStaffCycle, applyStaffCareerCycle } from "./staffing.js";
 import {
   accruePayroll,
@@ -202,6 +203,7 @@ export function monthToDateNetIncome(d: Dealership): number {
     - m.curtailmentPenalties
     - m.incentiveExpense
     - m.chargebackExpense
+    - m.insurancePremiumExpense
     - m.incomeTaxExpense;
 }
 
@@ -225,6 +227,7 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
   d.currentMonth.occupancyExpense = occupancy;
   d.currentMonth.propertyTaxExpense = propertyTax;
   d.currentMonth.utilitiesExpense = utilities;
+  d.currentMonth.insurancePremiumExpense = monthlyInsuranceCycle(d, state.day);
 
   payAccruedPayroll(d);
   payFloorPlanInterest(d);
@@ -261,7 +264,8 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     d.currentMonth.utilitiesExpense -
     d.currentMonth.curtailmentPenalties -
     d.currentMonth.incentiveExpense - // aged-unit spiffs, already paid out during the month
-    d.currentMonth.chargebackExpense;
+    d.currentMonth.chargebackExpense -
+    d.currentMonth.insurancePremiumExpense;
 
   // Top-performer, service-pool, and GM bonuses are read from this month's
   // deal/gross counters, so this must run before applyMonthlyStaffCycle
@@ -355,6 +359,7 @@ function finalizeMonth(state: GameState, d: Dealership, rng: Rng): number {
     incentiveExpense: 0,
     holdbackIncome: 0,
     chargebackExpense: 0,
+    insurancePremiumExpense: 0,
     netIncome: 0,
     unitsSoldNew: 0,
     unitsSoldUsed: 0,

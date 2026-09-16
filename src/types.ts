@@ -259,6 +259,7 @@ export interface MonthlyFinancials {
   incentiveExpense: number; // performance bonuses paid to staff (top-performer, aged-unit clearance, department pool, GM)
   holdbackIncome: number; // manufacturer dealer holdback on new-vehicle sales — invisible to the customer and excluded from commissionable front-end gross, same as in real life
   chargebackExpense: number; // F&I profit clawed back when an early loan payoff or product cancellation triggers a chargeback on a past deal
+  insurancePremiumExpense: number; // this month's garage policy premium (see engine/insurance.js) — $0 if uninsured
   netIncome: number;
   unitsSoldNew: number;
   unitsSoldUsed: number;
@@ -282,6 +283,33 @@ export interface CareerState {
 }
 
 export type FailureKind = "floorplan_seized" | null;
+
+export type InsuranceTier = "none" | "basic" | "standard" | "premium";
+
+/** One paid claim, kept for the tab's history and to drive experience-rated premiums (see engine/insurance.js's recentClaimsPayout). */
+export interface InsuranceClaim {
+  day: number;
+  cause: string;
+  lossAmount: number;
+  payout: number;
+}
+
+/**
+ * A bundled garage policy — real small dealers typically carry one package
+ * (garage liability + physical damage + garagekeepers) rather than
+ * separate line-item policies, so that's what a tier buys here. Per
+ * dealership, not group-level, since premium is driven by that store's own
+ * inventory value and headcount.
+ */
+export interface InsuranceState {
+  tier: InsuranceTier;
+  deductible: number;
+  monthlyPremium: number; // last-computed premium, recomputed every finalizeMonth
+  lifetimePremiumsPaid: number;
+  lifetimeClaimsPaid: number;
+  monthsUninsuredStreak: number; // consecutive months at tier "none" while carrying floor-plan debt — drives the lender-compliance consequence
+  recentClaims: InsuranceClaim[]; // capped rolling history
+}
 
 export interface Toast {
   id: string;
@@ -312,6 +340,7 @@ export interface Dealership {
   manufacturer: ManufacturerRelations;
   floorPlan: FloorPlanState;
   service: ServiceDept;
+  insurance: InsuranceState;
   ledger: LedgerAccounts;
   monthlyHistory: MonthlyFinancials[];
   currentMonth: MonthlyFinancials;

@@ -3,6 +3,7 @@ import { newCaptiveLender } from "./engine/captiveLender.js";
 import { newPartsWarehouse } from "./engine/partsWarehouse.js";
 import { newManufacturerCo } from "./engine/manufacturerCo.js";
 import { newEconomyState } from "./engine/economy.js";
+import { newInsuranceState } from "./engine/insurance.js";
 import {
   CURTAILMENT_FRACTION,
   CURTAILMENT_GRACE_DAYS,
@@ -54,6 +55,7 @@ function emptyMonth(label: string): MonthlyFinancials {
     incentiveExpense: 0,
     holdbackIncome: 0,
     chargebackExpense: 0,
+    insurancePremiumExpense: 0,
     netIncome: 0,
     unitsSoldNew: 0,
     unitsSoldUsed: 0,
@@ -132,6 +134,7 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
       auditFailed: false,
       monthsSinceAudit: 0,
     },
+    insurance: newInsuranceState(),
     service: {
       bays: 4,
       techs: staff.filter((s) => s.role === "service_tech"),
