@@ -8,6 +8,13 @@ export const CURTAILMENT_INTERVAL_DAYS = 30;
 export const CURTAILMENT_FRACTION = 0.1;
 export const CURTAILMENT_GRACE_DAYS = 14;
 export const AUDIT_FAIL_SEVERITY = 100;
+// The audit-risk score decays daily instead of only ever accumulating — a
+// violation cured months ago shouldn't count the same as one from last
+// week. At this rate (half-life ~70 days), a store with an occasional,
+// quickly-cured near-miss settles to a low steady state well under the
+// fail threshold; only a store with a genuinely chronic, ongoing pattern of
+// violations adds severity faster than it decays and actually reaches 100.
+export const VIOLATION_SEVERITY_DECAY_PER_DAY = 0.99;
 
 export const STRONG_MONTH_SCORE_THRESHOLD = 70;
 export const MONTHS_FOR_OWNERSHIP_OFFER = 6;
@@ -670,17 +677,23 @@ export const STAFF_LAST_NAMES = ["Reyes", "Coleman", "Patel", "Nguyen", "Okafor"
 // that grow with how built-out the facility is, a genuine ad-valorem
 // property tax on assessed value, and — the biggest miss — income tax on
 // actual profit, which nothing here ever paid before.
-export const GENERAL_ADMIN_MONTHLY = 8_000; // phone/internet, office admin, licensing & bonding
+// Raised well above a token line item — headless testing showed the old
+// figures left fixed overhead at roughly 1/5th of a typical month's gross
+// profit even for a badly-run, understaffed store in the worst economic
+// era the game can generate, so net income was effectively guaranteed
+// positive regardless of how well the player actually ran the place. These
+// are sized against real single-rooftop SG&A instead.
+export const GENERAL_ADMIN_MONTHLY = 16_000; // phone/internet, office admin, licensing & bonding
 
-export const OCCUPANCY_BASE_MONTHLY = 9_000;
-export const OCCUPANCY_PER_FACILITY_POINT = 180; // rent/mortgage scales with facilityStandards (0-100) — the same build-out stat that already drives lot capacity and sales-floor headcount
+export const OCCUPANCY_BASE_MONTHLY = 22_000;
+export const OCCUPANCY_PER_FACILITY_POINT = 320; // rent/mortgage scales with facilityStandards (0-100) — the same build-out stat that already drives lot capacity and sales-floor headcount
 
 export const PROPERTY_TAX_ANNUAL_RATE = 0.014; // ~1.4%/yr of assessed value — a realistic blended real-estate tax rate
-export const FACILITY_ASSESSED_VALUE_PER_POINT = 15_000; // rough building/improvements value backing the assessment, on top of vehicle inventory actually on hand
+export const FACILITY_ASSESSED_VALUE_PER_POINT = 35_000; // rough building/improvements value backing the assessment, on top of vehicle inventory actually on hand
 
-export const UTILITIES_BASE_MONTHLY = 2_500;
-export const UTILITIES_PER_BAY_MONTHLY = 900; // service bays draw real power, water, and gas
-export const UTILITIES_PER_LOT_CAPACITY_UNIT = 40; // a bigger lot needs more lighting and climate control
+export const UTILITIES_BASE_MONTHLY = 4_000;
+export const UTILITIES_PER_BAY_MONTHLY = 1_200; // service bays draw real power, water, and gas
+export const UTILITIES_PER_LOT_CAPACITY_UNIT = 55; // a bigger lot needs more lighting and climate control
 
 export const INCOME_TAX_RATE = 0.26; // a realistic blended effective federal + state rate on positive net income
 

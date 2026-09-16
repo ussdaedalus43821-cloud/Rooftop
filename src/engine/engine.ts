@@ -4,7 +4,7 @@ import { isNewMonth, monthLabel } from "./clock.js";
 import { autoManageFloorPlan, inventoryBookValue, lotCapacity, tickInventoryDaily } from "./inventory.js";
 import { generateDailyServiceJobs, monthlyServiceCycle, processServiceJobs } from "./service.js";
 import { autoNegotiateDeal, dailyUpCount, tryCreateUp } from "./salesFloor.js";
-import { economyDemandMultiplier, economyPriceToleranceMult, economyRateAdj, seasonalTrafficMultiplier, tickEconomyDaily } from "./economy.js";
+import { economyDemandMultiplier, economyMarginMultiplier, economyPriceToleranceMult, economyRateAdj, seasonalTrafficMultiplier, tickEconomyDaily } from "./economy.js";
 import { tickHostileTakeoverDaily } from "./hostileTakeover.js";
 import { autoRunFi, MAX_FI_DEALS_PER_MANAGER_PER_DAY } from "./fi.js";
 import { autoBidAuctionLots, autoOrderAllocation } from "./acquisition.js";
@@ -120,7 +120,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
 
   const ups = dailyUpCount(d, rng, economyDemandMultiplier(state) * seasonalTrafficMultiplier(state.day));
   for (let i = 0; i < ups; i++) {
-    tryCreateUp(d, state.day, rng, economyRateAdj(state), economyPriceToleranceMult(state));
+    tryCreateUp(d, state.day, rng, economyRateAdj(state), economyPriceToleranceMult(state), economyMarginMultiplier(state));
   }
 
   // Checked here, before autopilot resolves today's negotiations, so a
@@ -163,7 +163,7 @@ function tickDealershipDay(state: GameState, d: Dealership, rng: Rng): void {
       if (processed >= fiCapacity) break;
       const vehicle = d.vehicles.find((v) => v.id === deal.vehicleId);
       if (!vehicle) continue;
-      autoRunFi(d, deal, vehicle, state.day, rng);
+      autoRunFi(d, deal, vehicle, state.day, rng, economyMarginMultiplier(state));
       originateCaptiveLoan(state, deal);
       pushToast(state, `F&I closed ${deal.customer.name}'s deal. Total gross $${Math.round(deal.frontEndGross + deal.fiGross).toLocaleString()}.`, "good");
       processed++;

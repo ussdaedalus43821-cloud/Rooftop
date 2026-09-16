@@ -2,6 +2,7 @@ import type { Deal, Dealership, FiProductOffer, StaffMember, Vehicle } from "../
 import { Rng } from "../rng.js";
 import { buildTerms } from "./salesFloor.js";
 import { closeDeal } from "./dealClose.js";
+import { postGrossProfit } from "./financials.js";
 
 const PRODUCT_DEFS: { key: FiProductOffer["key"]; label: string; priceFrac: number; costFrac: number }[] = [
   { key: "warranty", label: "Extended Service Contract", priceFrac: 0.055, costFrac: 0.55 },
@@ -100,7 +101,7 @@ export function pitchProduct(d: Dealership, deal: Deal, productKey: FiProductOff
  * product by hand. A skilled manager pushes the reserve markup harder and
  * pitches every product on the menu, then closes the deal.
  */
-export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
+export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng, marginMult: number = 1): void {
   if (deal.stage === "agreed") enterFi(d, deal);
   if (deal.fiProducts.length === 0) deal.fiProducts = buildFiMenu(vehicle);
 
@@ -112,14 +113,22 @@ export function autoRunFi(d: Dealership, deal: Deal, vehicle: Vehicle, day: numb
     if (!product.pitched) pitchProduct(d, deal, product.key, rng);
   }
 
-  finalizeFiAndClose(d, deal, vehicle, day, rng);
+  finalizeFiAndClose(d, deal, vehicle, day, rng, marginMult);
 }
 
-export function finalizeFiAndClose(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
+/** marginMult (from economy.ts's economyMarginMultiplier — same downturn signal that compresses front-end price) thins the reserve/product markup in soft economic conditions: lenders offer less room on rate, buyers cut extras, and dealers can't push as hard. Defaults to 1 for the manual F&I-tab path where no economy context is threaded through yet. */
+export function finalizeFiAndClose(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng, marginMult: number = 1): void {
   const reserve = estimateFinanceReserve(deal);
   deal.financeReserve = reserve;
   const productsProfit = deal.fiProducts.filter((p) => p.attached).reduce((sum, p) => sum + (p.price - p.cost), 0);
-  deal.fiGross = reserve + productsProfit;
+  deal.fiGross = (reserve + productsProfit) * marginMult;
+  // Every other gross-profit source (front-end, service, parts, holdback)
+  // books to cash+equity the moment it's earned — this was the one
+  // exception, silently missing. Reported net income already counted
+  // fiGross as revenue (and taxed/bonused against it) whether or not the
+  // ledger ever actually received it, so the store's real cash position was
+  // quietly bleeding relative to what the P&L showed.
+  postGrossProfit(d, deal.fiGross);
 
   const mgr = deal.fiManagerId ? d.staff.find((s) => s.id === deal.fiManagerId) : undefined;
   if (mgr) {

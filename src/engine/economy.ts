@@ -191,6 +191,19 @@ export function economyDemandMultiplier(state: GameState): number {
   return clamp(state.economy.sentiment * state.economy.currentEra.demandMult, 0.3, 1.9);
 }
 
+// A separate, steeper transform of the same demand signal for margin
+// (front-end price compression, F&I reserve/product profit) rather than
+// traffic volume. Squaring keeps a normal era at 1x (no change) while
+// making a genuine downturn bite much harder on margin specifically than
+// on raw foot traffic — real dealers see both fewer buyers AND have to
+// discount much harder on the ones who do show up, and volume alone
+// (demandMult) turned out to be almost entirely absorbed by ordinary
+// staffing/inventory slack, so it never actually reached net income.
+export function economyMarginMultiplier(state: GameState): number {
+  const m = economyDemandMultiplier(state);
+  return clamp(m * m * m, 0.08, 1.6);
+}
+
 export function economyRateAdj(state: GameState): number {
   return state.economy.currentEra.rateAdj;
 }

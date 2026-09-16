@@ -48,7 +48,7 @@ function randomModelClass(d: Dealership, rng: Rng): VehicleClass {
   return rng.pick(lot).model.class;
 }
 
-export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1): Customer {
+export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1, economyMult: number = 1): Customer {
   const credit = creditProfile(rng, rateAdj);
   const hasTrade = rng.chance(0.45);
   const name = `${rng.pick(CUSTOMER_FIRST_NAMES)} ${rng.pick(CUSTOMER_LAST_NAMES)}`;
@@ -81,6 +81,7 @@ export function generateCustomer(d: Dealership, day: number, rng: Rng, rateAdj: 
     // supplyShock era, modeled on the 2021-2022 chip shortage), when buyers
     // really did pay at or above sticker with little room to haggle.
     priceFlexibility: rng.range(0.02, 0.11) * priceToleranceMult,
+    targetPriceMult: economyMult,
   };
 }
 
@@ -90,12 +91,19 @@ export function customerTargetPrice(customer: Customer, vehicle: Vehicle): numbe
     // transparency went mainstream in the 2010s (TrueCar, Edmunds,
     // CarGurus) — a shopper walks in already knowing roughly what invoice
     // is, and expects to land close to it, not halfway to sticker.
-    return vehicle.model.invoice + (vehicle.model.msrp - vehicle.model.invoice) * 0.25;
+    // targetPriceMult (baked in at generation from the economy's current
+    // health, see economyDemandMultiplier) scales the markup portion with
+    // the cycle — buyers negotiate harder, and dealers cut price to move
+    // metal, when times are soft; the reverse in a genuine seller's market.
+    // Only the spread above invoice moves, never invoice itself, so even a
+    // severe downturn compresses toward a thin/breakeven front end rather
+    // than manufacturing a guaranteed per-unit loss.
+    return vehicle.model.invoice + (vehicle.model.msrp - vehicle.model.invoice) * 0.25 * customer.targetPriceMult;
   }
   // Same story for used, via CarMax/Carvana-style no-haggle comp-shopping
   // that trained buyers to expect a tight, known markup over cost instead
   // of a real negotiation.
-  return (vehicle.acquisitionCost + vehicle.reconCost) * 1.08;
+  return (vehicle.acquisitionCost + vehicle.reconCost) * (1 + 0.08 * customer.targetPriceMult);
 }
 
 function leastBusySalesperson(d: Dealership): StaffMember | null {
@@ -130,14 +138,14 @@ function vehiclesInActiveDeals(d: Dealership): Set<string> {
   return ids;
 }
 
-export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1): Deal | null {
+export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: number = 0, priceToleranceMult: number = 1, economyMult: number = 1): Deal | null {
   const reserved = vehiclesInActiveDeals(d);
   const lot = unitsOnLot(d).filter((v) => !reserved.has(v.id));
   if (lot.length === 0) return null;
   const rep = leastBusySalesperson(d);
   if (!rep) return null;
 
-  const customer = generateCustomer(d, day, rng, rateAdj, priceToleranceMult);
+  const customer = generateCustomer(d, day, rng, rateAdj, priceToleranceMult, economyMult);
   const matches = lot.filter((v) => v.model.class === customer.interestedModelClass);
   const vehicle = matches.length > 0 ? rng.pick(matches) : rng.pick(lot);
 

@@ -88,13 +88,13 @@ export function createDealership(rng: Rng, id: string, name: string, franchiseKe
   const capital = startingCapital ?? option.startingCash;
   const noFranchise = option.baseQuota === 0; // e.g. Carvana: used-only, no manufacturer relationship at all
   const staff: StaffMember[] = [
-    makeStaff(rng, "salesperson", 55, 2400, 0.2),
-    makeStaff(rng, "salesperson", 45, 2200, 0.2),
-    makeStaff(rng, "salesperson", 65, 2600, 0.22),
-    makeStaff(rng, "fi_manager", 60, 3800, 0.08),
-    makeStaff(rng, "service_advisor", 55, 3200),
-    makeStaff(rng, "service_tech", 60, 3400),
-    makeStaff(rng, "service_tech", 50, 3100),
+    makeStaff(rng, "salesperson", 55, 4300, 0.2),
+    makeStaff(rng, "salesperson", 45, 4000, 0.2),
+    makeStaff(rng, "salesperson", 65, 4700, 0.22),
+    makeStaff(rng, "fi_manager", 60, 6800, 0.08),
+    makeStaff(rng, "service_advisor", 55, 5700),
+    makeStaff(rng, "service_tech", 60, 6100),
+    makeStaff(rng, "service_tech", 50, 5600),
   ];
 
   return {

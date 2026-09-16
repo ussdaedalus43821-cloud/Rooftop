@@ -122,6 +122,7 @@ export interface Customer {
   interestedModelClass: VehicleClass;
   patience: number; // rounds of negotiation before walking, 1-4
   priceFlexibility: number; // 0-1, how much above their target they'll tolerate
+  targetPriceMult: number; // baked in at generation from the economy's current health — <1 in a soft market (buyers negotiate harder, dealers cut price to move metal), >1 in a hot one
 }
 
 export type DealStage = "shopping" | "negotiating" | "agreed" | "fi" | "closed" | "lost";

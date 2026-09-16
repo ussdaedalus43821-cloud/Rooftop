@@ -13,12 +13,17 @@ const HIRE_COST: Record<SalesRole, number> = {
   gm: 6000,
 };
 
+// Raised roughly 1.8x from the original figures — payroll is one of the few
+// genuinely fixed costs in the game, and at the old scale it was too small
+// relative to typical gross profit to meaningfully pressure a bad month
+// toward an actual loss. Sized against real-world blended base pay for
+// these roles (before commission, which stays separate and variable).
 export const BASE_SALARY: Record<SalesRole, number> = {
-  salesperson: 2200,
-  fi_manager: 3600,
-  service_advisor: 3000,
-  service_tech: 3200,
-  gm: 5800,
+  salesperson: 4000,
+  fi_manager: 6800,
+  service_advisor: 5200,
+  service_tech: 5500,
+  gm: 10_000,
 };
 
 const TRAIN_COST = 1800;

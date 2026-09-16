@@ -1,5 +1,5 @@
 import type { Dealership, Vehicle } from "../types.js";
-import { AUDIT_FAIL_SEVERITY } from "../constants.js";
+import { AUDIT_FAIL_SEVERITY, VIOLATION_SEVERITY_DECAY_PER_DAY } from "../constants.js";
 import {
   accrueFloorPlanInterest,
   capitalizeRecon,
@@ -77,6 +77,11 @@ export interface InventoryRng {
 
 /** Advances every vehicle one day: recon pipeline, floor-plan interest, curtailment, SOT. */
 export function tickInventoryDaily(d: Dealership, day: number, rng: InventoryRng): void {
+  // Decay first, then let today's violations (below) add on top — a store
+  // with no fresh violations today just quietly bleeds its score down
+  // toward zero.
+  d.floorPlan.violationSeverity *= VIOLATION_SEVERITY_DECAY_PER_DAY;
+
   for (const v of d.vehicles) {
     if (v.stage === "sold") {
       v.soldOutOfTrustDays += 1;
