@@ -164,6 +164,7 @@ export function tryCreateUp(d: Dealership, day: number, rng: Rng, rateAdj: numbe
     id: nextId("deal"),
     customer,
     vehicleId: vehicle.id,
+    vehicleLabel: `${vehicle.model.name} ${vehicle.model.trim}`,
     stage: "negotiating",
     round: 0,
     terms,

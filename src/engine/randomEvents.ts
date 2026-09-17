@@ -16,9 +16,9 @@
 // stats (reputation, CSI, compliance strikes) nudge a few of the chances,
 // so a well-run store is playing the odds slightly better, not immune.
 // ---------------------------------------------------------------------------
-import type { Dealership, GameState, RandomEventKind, RandomEventRecord, Vehicle } from "../types.js";
+import type { Deal, Dealership, GameState, RandomEventKind, RandomEventRecord, Vehicle } from "../types.js";
 import { Rng } from "../rng.js";
-import { capitalizeRecon, postCashExpense } from "./financials.js";
+import { capitalizeRecon, postCashExpense, postGrossProfit } from "./financials.js";
 import { fileInsuranceClaim } from "./insurance.js";
 import { activeNegotiations } from "./salesFloor.js";
 import { unitsOnLot } from "./inventory.js";
@@ -372,6 +372,101 @@ export function resolveComplianceFineChoice(state: GameState, event: RandomEvent
     penalty, 0, false);
 }
 
+// --- Customer return request (post-sale "buyer's remorse") ------------------
+//
+// Most U.S. states have no legally mandated cooling-off period for a
+// vehicle purchase — the "3-day right to cancel" the customer cites here is
+// a real misconception (it's a voluntary money-back guarantee some dealers
+// choose to advertise, not a legal requirement), so refusing is always
+// within the dealer's rights, same real-world footing as ignoring a
+// compliance fine isn't. Same deferred-choice shape as the recall/fine:
+// tryCustomerReturnRequest only rolls the numbers and returns an unresolved
+// notice; resolveCustomerReturnChoice (called once the player picks) does
+// the actual work. Deliberately doesn't reverse the whole sale down to the
+// last dollar — the trade-in (if any) already became its own inventory unit
+// and isn't unwound, and accepting books the gross given back plus a flat
+// diminished-value hit rather than literally reinstating the traded-away
+// car, the same kind of bounded simplification writeOffVehicle documents
+// for a floor-plan lien that outlives its collateral.
+
+const RETURN_REQUEST_WINDOW_DAYS = 3;
+const RETURN_REQUEST_BASE_CHANCE = 0.02;
+const RETURN_REQUEST_MOOD_CHANCE_MULT = 0.05;
+const RETURN_REQUEST_MIN_CHANCE = 0.008;
+const RETURN_REQUEST_MAX_CHANCE = 0.06;
+const RETURN_DIMINISHED_VALUE_FRACTION = 0.35;
+const RETURN_REFUSAL_BACKLASH_CHANCE = 0.2;
+const RETURN_REFUSAL_REPUTATION_HIT = 2;
+const RETURN_ACCEPT_REPUTATION_GAIN = 1;
+
+function returnCostFor(deal: Deal): { grossAtStake: number; totalCost: number } {
+  const grossAtStake = Math.max(0, deal.frontEndGross) + Math.max(0, deal.fiGross);
+  const diminishedValueHit = Math.round(grossAtStake * RETURN_DIMINISHED_VALUE_FRACTION);
+  return { grossAtStake, totalCost: grossAtStake + diminishedValueHit };
+}
+
+function tryCustomerReturnRequest(state: GameState, d: Dealership, rng: Rng, day: number): RandomEventRecord | null {
+  const candidates = d.deals.filter((deal) => deal.stage === "closed" && deal.closedDay === day - RETURN_REQUEST_WINDOW_DAYS);
+  if (candidates.length === 0) return null;
+  const deal = rng.pick(candidates);
+  // A customer who barely said yes (mood just over the acceptance bar) is a lot more likely to talk themselves into regretting it than one who left happy.
+  const moodPenalty = clamp(0.5 - deal.lastCustomerMood, 0, 1);
+  const chance = clamp(RETURN_REQUEST_BASE_CHANCE + moodPenalty * RETURN_REQUEST_MOOD_CHANCE_MULT, RETURN_REQUEST_MIN_CHANCE, RETURN_REQUEST_MAX_CHANCE);
+  if (!rng.chance(chance)) return null;
+
+  const { grossAtStake, totalCost } = returnCostFor(deal);
+  return {
+    day, dealershipId: d.id, dealershipName: d.name, kind: "customer_return_request",
+    headline: `${d.name}: a buyer wants to return their ${deal.vehicleLabel}.`,
+    detail: `${deal.customer.name} is back, ${RETURN_REQUEST_WINDOW_DAYS} days after taking delivery of the ${deal.vehicleLabel}, asking for a full refund — citing a "3-day right to cancel" that doesn't actually exist for vehicle sales in most states. You're under no legal obligation to take it back. Accept it as a goodwill gesture and you refund them, void the financing, and eat ${money(totalCost)} between the gross profit given back and the hit of re-wholesaling a car that's no longer sellable as new — or refuse, keep the ${money(grossAtStake)} gross, and risk them making noise about it.`,
+    lossAmount: totalCost, insurancePayout: 0, isRipple: false, dealId: deal.id,
+  };
+}
+
+/** Resolves a customer_return_request notice once the player picks "pay" (accept the return, refund and reverse the deal's gross) or "contest" (refuse — the sale stands, no legal obligation to do otherwise). */
+export function resolveCustomerReturnChoice(state: GameState, event: RandomEventRecord, choice: "pay" | "contest", rng: Rng): void {
+  const d = state.dealerships[event.dealershipId];
+  if (!d) return;
+  const day = event.day;
+  const deal = event.dealId ? d.deals.find((x) => x.id === event.dealId) : undefined;
+  const vehicleLabel = deal?.vehicleLabel ?? "vehicle";
+  const customerName = deal?.customer.name ?? "the buyer";
+
+  if (choice === "contest") {
+    d.reputation = clamp(d.reputation - RETURN_REFUSAL_REPUTATION_HIT, 0, 100);
+    deal?.log.push(`You refused the return — the sale stands.`);
+    logEvent(state, d, day, "customer_return_request", `${d.name}: refused a return request.`,
+      `Refused the return of the ${vehicleLabel} — well within your rights, but ${customerName} didn't leave happy.`,
+      0, 0, false);
+    if (rng.chance(RETURN_REFUSAL_BACKLASH_CHANCE)) {
+      scheduleRipple(state, d, day, 8, 20, "customer_return_backlash", rng);
+    }
+    return;
+  }
+
+  if (!deal) {
+    logEvent(state, d, day, "customer_return_request", `${d.name}: accepted a return request.`,
+      `Accepted the return and refunded the buyer.`, 0, 0, false);
+    return;
+  }
+
+  const { totalCost } = returnCostFor(deal);
+  if (totalCost > 0) postGrossProfit(d, -totalCost);
+  d.reputation = clamp(d.reputation + RETURN_ACCEPT_REPUTATION_GAIN, 0, 100);
+  deal.log.push(`Accepted the return — refunded and eaten as a loss.`);
+  logEvent(state, d, day, "customer_return_request", `${d.name}: accepted a return and refunded the buyer.`,
+    `Took back the ${vehicleLabel} and refunded ${customerName} in full — ${money(totalCost)} between the gross given back and the wholesale hit on a car that's no longer sellable as new.`,
+    totalCost, 0, false);
+}
+
+function resolveReturnBacklash(state: GameState, d: Dealership, day: number): RandomEventRecord | null {
+  d.reputation = clamp(d.reputation - 1, 0, 100);
+  return logEvent(state, d, day, "customer_return_backlash",
+    `${d.name}: the refused return turned into a bad review.`,
+    `The buyer went public about being turned down for a refund — a further ding to your reputation.`,
+    0, 0, true);
+}
+
 // --- Daily orchestration -----------------------------------------------------
 
 /** Run once per in-game day, per dealership, from tickDealershipDay — checks every per-store event type and fires at most one (keeps the log readable; two unrelated incidents landing the same day is a rare enough coincidence not to bother modeling). */
@@ -382,7 +477,8 @@ export function dailyRandomEventCheck(state: GameState, d: Dealership, rng: Rng,
     tryServiceBayMishap(state, d, rng, day) ??
     trySlipAndFall(state, d, rng, day) ??
     tryManufacturerRecall(state, d, rng, day) ??
-    tryComplianceFine(state, d, rng, day)
+    tryComplianceFine(state, d, rng, day) ??
+    tryCustomerReturnRequest(state, d, rng, day)
   );
 }
 
@@ -436,6 +532,8 @@ function resolveRipple(state: GameState, d: Dealership, rng: Rng, day: number, k
     }
     case "recall_compliance_strike":
       return resolveRecallCompliance(state, d, day);
+    case "customer_return_backlash":
+      return resolveReturnBacklash(state, d, day);
     default:
       return null;
   }

@@ -3,7 +3,7 @@ import { createNewGame } from "../dist/state.js";
 import { advanceOneDay } from "../dist/engine/engine.js";
 import { Rng } from "../dist/rng.js";
 import { setInsuranceTier } from "../dist/engine/insurance.js";
-import type { GameState } from "../src/types.js";
+import type { Deal, GameState } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // This suite drives the real engine headlessly, against the same dist/
@@ -78,6 +78,70 @@ function buildTestDriveTotalLossEventSave(): string {
     lossAmount: 28_400,
     insurancePayout: 24_400,
     isRipple: false,
+  });
+  return JSON.stringify(state);
+}
+
+function buildCustomerReturnRequestEventSave(): string {
+  const state: GameState = createNewGame(4, "toyota");
+  const d = state.dealerships[state.activeDealershipId];
+
+  // Constructed by hand, same reasoning as buildTestDriveTotalLossEventSave:
+  // a real return request depends on a deal actually closing three days
+  // earlier, which is timing- and RNG-dependent. This builds the exact Deal
+  // + pending notice shape resolveCustomerReturnChoice expects, with clean
+  // round numbers so the accept-path math (see returnCostFor in
+  // engine/randomEvents.ts) is easy to verify by eye: $2,000 front-end +
+  // $1,500 F&I = $3,500 gross at stake, +35% diminished-value hit = $4,725.
+  const deal: Deal = {
+    id: "deal_fixture_return",
+    customer: {
+      id: "cust_fixture_return",
+      name: "Pat Rivera",
+      budgetMonthly: 450,
+      downPaymentCash: 2000,
+      creditTier: "prime",
+      hasTrade: false,
+      interestedModelClass: "sedan",
+      patience: 3,
+      priceFlexibility: 0.1,
+      targetPriceMult: 1,
+    },
+    vehicleId: "vehicle_fixture_return",
+    vehicleLabel: "Camry XLE",
+    stage: "closed",
+    round: 2,
+    terms: {
+      price: 28_000,
+      tradeAllowance: 0,
+      downPayment: 2000,
+      termMonths: 60,
+      aprBuyRate: 0.05,
+      aprSellRate: 0.06,
+      monthlyPayment: 480,
+    },
+    frontEndGross: 2000,
+    fiGross: 1500,
+    fiProducts: [],
+    financeReserve: 500,
+    createdDay: state.day,
+    closedDay: state.day,
+    lastCustomerMood: 0.3,
+    log: [],
+  };
+  d.deals.push(deal);
+
+  state.pendingEventModal.push({
+    day: state.day,
+    dealershipId: d.id,
+    dealershipName: d.name,
+    kind: "customer_return_request",
+    headline: `${d.name}: a buyer wants to return their Camry XLE.`,
+    detail: "Pat Rivera is back, 3 days after taking delivery of the Camry XLE, asking for a full refund.",
+    lossAmount: 4725,
+    insurancePayout: 0,
+    isRipple: false,
+    dealId: deal.id,
   });
   return JSON.stringify(state);
 }
@@ -162,6 +226,26 @@ test.describe("Rooftop dealership smoke tests", () => {
     await approveBtn.click();
 
     await expect(modal).toHaveCount(0);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test("a customer return request notice resolves and keeps the books balanced on acceptance", async ({ page }) => {
+    await loadSave(page, buildCustomerReturnRequestEventSave());
+
+    const modal = page.locator(".modal-backdrop");
+    await expect(modal).toHaveCount(1);
+    await expect(modal).toContainText("Customer Return Request");
+    await expect(modal).toContainText("Accept the Return");
+    await expect(modal).toContainText("Refuse — Sale Is Final");
+    await expect(modal).toContainText("$4,725");
+
+    await page.locator('button[data-action="event:choice"][data-choice="pay"]').click();
+    await expect(modal).toHaveCount(0);
+
+    await page.locator('button:has-text("Financials")').first().click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText("The books balance exactly.")).toBeVisible();
+
     expect(consoleErrors).toEqual([]);
   });
 

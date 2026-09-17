@@ -6,7 +6,7 @@ import { totalAssets, totalLiabilities } from "../engine/financials.js";
 import { pushToast, monthToDateNetIncome } from "../engine/engine.js";
 import { money } from "./format.js";
 import { resolveMilestone } from "../engine/career.js";
-import { resolveManufacturerRecallChoice, resolveComplianceFineChoice } from "../engine/randomEvents.js";
+import { resolveManufacturerRecallChoice, resolveComplianceFineChoice, resolveCustomerReturnChoice } from "../engine/randomEvents.js";
 import { createNewGame } from "../state.js";
 import { clearSave, saveGame } from "../persistence.js";
 import { FRANCHISE_CATEGORIES, franchisesInCategory, getFranchiseOption } from "../constants.js";
@@ -262,9 +262,15 @@ const EVENT_KIND_TITLE: Partial<Record<string, string>> = {
   slip_and_fall: "Slip-and-Fall Claim",
   manufacturer_recall: "Manufacturer Recall",
   compliance_fine: "Compliance Fine",
+  customer_return_request: "Customer Return Request",
 };
 
-const EVENT_CHOICE_KINDS = new Set(["manufacturer_recall", "compliance_fine"]);
+const EVENT_CHOICE_KINDS = new Set(["manufacturer_recall", "compliance_fine", "customer_return_request"]);
+
+const EVENT_CHOICE_LABELS: Partial<Record<string, { pay: string; contest: string }>> = {
+  customer_return_request: { pay: "Accept the Return", contest: "Refuse — Sale Is Final" },
+};
+const DEFAULT_EVENT_CHOICE_LABELS = { pay: "Pay Now", contest: "Contest It" };
 
 function renderEventModal(): string {
   if (!ctx || ctx.state.pendingEventModal.length === 0) return "";
@@ -277,13 +283,14 @@ function renderEventModal(): string {
   const isChoice = EVENT_CHOICE_KINDS.has(event.kind);
   const remainingSuffix = remaining > 0 ? ` (${remaining} more)` : "";
 
+  const choiceLabels = EVENT_CHOICE_LABELS[event.kind] ?? DEFAULT_EVENT_CHOICE_LABELS;
   const footer = isChoice
     ? `
       <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:12px;">
-        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This is a formal response to the manufacturer/regulator, entered into the record — choose how to proceed.</label>
+        <label class="text-faint" style="font-size:11.5px;display:block;margin-bottom:6px;">This decision is entered into the record once made — choose how to proceed.</label>
         <div class="btn-row">
-          <button class="btn btn-primary" data-action="event:choice" data-choice="pay">Pay Now — ${money(event.lossAmount)}${remainingSuffix}</button>
-          <button class="btn btn-bad" data-action="event:choice" data-choice="contest">Contest It${remainingSuffix}</button>
+          <button class="btn btn-primary" data-action="event:choice" data-choice="pay">${escapeHtml(choiceLabels.pay)} — ${money(event.lossAmount)}${remainingSuffix}</button>
+          <button class="btn btn-bad" data-action="event:choice" data-choice="contest">${escapeHtml(choiceLabels.contest)}${remainingSuffix}</button>
         </div>
       </div>`
     : `
@@ -387,6 +394,8 @@ function onClick(e: MouseEvent): void {
         resolveManufacturerRecallChoice(ctx.state, event, choice, ctx.rng);
       } else if (event.kind === "compliance_fine") {
         resolveComplianceFineChoice(ctx.state, event, choice, ctx.rng);
+      } else if (event.kind === "customer_return_request") {
+        resolveCustomerReturnChoice(ctx.state, event, choice, ctx.rng);
       }
       ctx.state.pendingEventModal.shift();
       ctx.markDirty();

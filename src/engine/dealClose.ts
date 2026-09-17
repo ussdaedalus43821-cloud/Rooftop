@@ -14,6 +14,7 @@ import { HOLDBACK_RATE } from "../constants.js";
 export function closeDeal(d: Dealership, deal: Deal, vehicle: Vehicle, day: number, rng: Rng): void {
   const grossProfit = sellVehicleBookkeeping(d, vehicle, deal.terms.price);
   deal.frontEndGross = grossProfit;
+  deal.closedDay = day;
   vehicle.stage = "sold";
 
   if (d.floorPlan.holdPayoffs) {

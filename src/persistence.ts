@@ -55,6 +55,12 @@ function migrateState(state: GameState): GameState {
     if (d.currentMonth.chargebackExpense === undefined) d.currentMonth.chargebackExpense = 0;
     if (d.currentMonth.insurancePremiumExpense === undefined) d.currentMonth.insurancePremiumExpense = 0;
     if (!d.insurance) d.insurance = newInsuranceState();
+    for (const deal of d.deals) {
+      if (!deal.vehicleLabel) {
+        const v = d.vehicles.find((x) => x.id === deal.vehicleId);
+        deal.vehicleLabel = v ? `${v.model.name} ${v.model.trim}` : "vehicle";
+      }
+    }
     for (const m of d.monthlyHistory) {
       if (m.incentiveExpense === undefined) m.incentiveExpense = 0;
       if (m.occupancyExpense === undefined) m.occupancyExpense = 0;

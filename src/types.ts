@@ -150,6 +150,7 @@ export interface Deal {
   id: string;
   customer: Customer;
   vehicleId: string;
+  vehicleLabel: string; // "{model.name} {model.trim}" captured at deal creation — the vehicle itself may be long gone (sold and purged, or written off) by the time something needs to describe it later
   stage: DealStage;
   round: number;
   terms: FourSquareTerms;
@@ -161,6 +162,7 @@ export interface Deal {
   salespersonId?: string;
   fiManagerId?: string;
   createdDay: number;
+  closedDay?: number; // set by closeDeal — the day the sale actually finalized, distinct from createdDay (when the negotiation started)
   lastCustomerMood: number; // -1..1, satisfaction with current offer
   log: string[];
 }
@@ -299,7 +301,9 @@ export type RandomEventKind =
   | "manufacturer_recall"
   | "recall_compliance_strike"
   | "compliance_fine"
-  | "compliance_fine_escalation";
+  | "compliance_fine_escalation"
+  | "customer_return_request"
+  | "customer_return_backlash";
 
 /** One fired event or ripple, kept for the Overview tab's incident feed. */
 export interface RandomEventRecord {
@@ -309,10 +313,11 @@ export interface RandomEventRecord {
   kind: RandomEventKind;
   headline: string;
   detail: string;
-  lossAmount: number; // 0 for a non-financial ripple like a compliance strike; for an unresolved manufacturer_recall/compliance_fine notice, the "Pay Now" cost on offer
+  lossAmount: number; // 0 for a non-financial ripple like a compliance strike; for an unresolved manufacturer_recall/compliance_fine/customer_return_request notice, the cost of the "comply" choice on offer
   insurancePayout: number; // 0 if uninsured or not an insurable event
   isRipple: boolean;
   jobsToAdd?: number; // manufacturer_recall only, pre-rolled at trigger time so "Contest" queues the same count the notice described
+  dealId?: string; // customer_return_request only — which Deal to reverse if the player accepts
 }
 
 /** A follow-up event scheduled for a later day when an earlier event's ripple roll hits — resolved by engine/randomEvents.ts once state.day reaches it. Not every event escalates; this only exists for the ones that rolled a real chance and hit. */
