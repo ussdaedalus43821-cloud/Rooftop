@@ -5,15 +5,14 @@
 // premium is driven by that store's own inventory value and headcount, not
 // anything group-level.
 //
-// Nothing in the engine files a claim yet — random events (test-drive
-// wrecks, hail, theft, service-bay mishaps) are the next piece and will
-// call fileInsuranceClaim once they exist. This module is a complete,
-// independently testable system in the meantime: choose a tier and
-// deductible, pay a real monthly premium, and — the actual teeth — a
-// floor-plan lender expects its financed collateral to stay insured, so
-// running uninsured while carrying floor-plan debt past a grace period
-// feeds the same violationSeverity/audit-failure consequence a missed
-// curtailment does (see engine/inventory.ts).
+// Random events (test-drive wrecks, hail, theft, service-bay mishaps — see
+// engine/randomEvents.ts) call fileInsuranceClaim below to recover most of
+// their loss when the store carries coverage. This module also stands on
+// its own regardless: choose a tier and deductible, pay a real monthly
+// premium, and — the actual teeth — a floor-plan lender expects its
+// financed collateral to stay insured, so running uninsured while carrying
+// floor-plan debt past a grace period feeds the same violationSeverity/
+// audit-failure consequence a missed curtailment does (see engine/inventory.ts).
 // ---------------------------------------------------------------------------
 import type { Dealership, InsuranceState, InsuranceTier } from "../types.js";
 import { postCashExpense, postGrossProfit } from "./financials.js";

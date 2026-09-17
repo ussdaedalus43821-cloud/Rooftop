@@ -42,12 +42,19 @@ function scheduleRipple(state: GameState, d: Dealership, day: number, delayMin: 
   state.scheduledRipples.push({ day: day + rng.int(delayMin, delayMax), dealershipId: d.id, kind, lossAmount });
 }
 
-/** Removes a vehicle as a total loss (stolen, or wrecked beyond repair) — a straight write-off against equity, same as any asset that's simply gone. The floor-plan balance owed on it, if any, is untouched: a real lender's lien doesn't vanish with the collateral, which is exactly why GAP coverage exists in real life and standard insurance alone doesn't always make a dealer whole. */
+/** Removes a vehicle as a total loss (stolen, or wrecked beyond repair) — a straight write-off against equity, same as any asset that's simply gone. The floor-plan balance owed on it, if any, is untouched: a real lender's lien doesn't vanish with the collateral, which is exactly why GAP coverage exists in real life and standard insurance alone doesn't always make a dealer whole. A vehicle can be mid-deal when this happens (stage alone doesn't mark it reserved), so any deal pointing at it is closed out here too — otherwise it lingers as a ghost entry with a vehicleId that resolves to nothing, and one already past negotiation (agreed/fi) has no other cleanup path and would sit stuck in the F&I queue forever. */
 function writeOffVehicle(d: Dealership, vehicle: Vehicle): number {
   const bookValue = vehicle.acquisitionCost + vehicle.reconCost;
   d.ledger.vehicleInventoryValue -= bookValue;
   d.ledger.retainedEarnings -= bookValue;
   d.vehicles = d.vehicles.filter((v) => v.id !== vehicle.id);
+  for (const deal of d.deals) {
+    if (deal.vehicleId !== vehicle.id) continue;
+    if (deal.stage === "negotiating" || deal.stage === "agreed" || deal.stage === "fi") {
+      deal.stage = "lost";
+      deal.log.push(`The ${vehicle.model.name} was written off before the deal could close.`);
+    }
+  }
   return bookValue;
 }
 
