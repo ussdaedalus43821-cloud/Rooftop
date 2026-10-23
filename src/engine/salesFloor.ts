@@ -103,7 +103,20 @@ export function customerTargetPrice(customer: Customer, vehicle: Vehicle): numbe
   // Same story for used, via CarMax/Carvana-style no-haggle comp-shopping
   // that trained buyers to expect a tight, known markup over cost instead
   // of a real negotiation.
-  return (vehicle.acquisitionCost + vehicle.reconCost) * (1 + 0.08 * customer.targetPriceMult);
+  return (vehicle.acquisitionCost + vehicle.reconCost) * (1 + 0.05 * customer.targetPriceMult);
+}
+
+// How far above target a customer will stretch before walking. Flexibility
+// is a share of the vehicle's whole price, so at full strength it swamped
+// the thin invoice-to-target spread above — a $43K car got up to ~$4,700 of
+// headroom against an ~$800 intended markup, enough that a store keeping
+// only its front-end gross still turned a profit. Halving it keeps
+// negotiation room meaningful without breaking the back-end premise (see
+// the "metal-only" e2e scenario).
+const CEILING_FLEX_SCALE = 0.5;
+
+export function customerCeilingPrice(customer: Customer, vehicle: Vehicle): number {
+  return customerTargetPrice(customer, vehicle) * (1 + customer.priceFlexibility * CEILING_FLEX_SCALE);
 }
 
 function leastBusySalesperson(d: Dealership): StaffMember | null {
@@ -190,7 +203,7 @@ export interface OfferOutcome {
 export function evaluateOffer(d: Dealership, deal: Deal, vehicle: Vehicle, rng: Rng): OfferOutcome {
   const customer = deal.customer;
   const target = customerTargetPrice(customer, vehicle);
-  const ceiling = target * (1 + customer.priceFlexibility);
+  const ceiling = customerCeilingPrice(customer, vehicle);
   const priceScore = clamp((ceiling - deal.terms.price) / Math.max(1, ceiling - target), -1.3, 1.3);
 
   const paymentScore = clamp((customer.budgetMonthly * 1.12 - deal.terms.monthlyPayment) / (customer.budgetMonthly * 0.35), -1.3, 1.3);
@@ -249,7 +262,7 @@ export function autoNegotiateDeal(d: Dealership, deal: Deal, vehicle: Vehicle, r
   const aggressiveness = clamp(0.3 + (skill / 100) * 0.45, 0.3, 0.75);
 
   const target = customerTargetPrice(deal.customer, vehicle);
-  const ceiling = target * (1 + deal.customer.priceFlexibility);
+  const ceiling = customerCeilingPrice(deal.customer, vehicle);
   let price = Math.round(target + (ceiling - target) * aggressiveness);
 
   let tradeAllowance = deal.terms.tradeAllowance;

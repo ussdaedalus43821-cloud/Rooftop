@@ -164,6 +164,43 @@ function buildFinancialsHistorySave(): string {
   return JSON.stringify(state);
 }
 
+interface MetalOnlyResult {
+  label: string;
+  months: number;
+  netIncome: number;
+  backEndGross: number;
+  metalOnlyNetIncome: number;
+}
+
+// The game's core premise, checked against the real engine: a fully staffed
+// store on autopilot (default staff skill, no hand-tuning) should be
+// profitable overall, yet lose money if it kept only its front-end vehicle
+// gross. "Metal-only" here is net income with every back-end line (F&I,
+// service, parts, holdback) taken back out — conservative, since the real
+// store would also owe less income tax on that smaller pretax figure. The
+// first month is skipped: it's a ramp-up month with a half-stocked lot.
+function buildMetalOnlyScenario(seed: number, franchiseKey: "toyota" | "bmw"): MetalOnlyResult {
+  const state: GameState = createNewGame(seed, franchiseKey);
+  const d = state.dealerships[state.activeDealershipId];
+  d.autoPilot = { sales: true, fi: true, auction: true, allocation: true, treasury: false };
+  const rng = new Rng(state.rngState || seed);
+  for (let day = 1; day <= 150; day++) {
+    if (d.failure) break;
+    advanceOneDay(state, rng);
+    state.pendingEventModal = [];
+    state.career.milestoneOfferPending = false;
+  }
+
+  const months = d.monthlyHistory.slice(1);
+  if (months.length < 3) {
+    throw new Error(`buildMetalOnlyScenario(${franchiseKey}, ${seed}): expected at least 3 post-ramp months — got ${months.length}.`);
+  }
+  const sum = (pick: (m: (typeof months)[number]) => number) => months.reduce((acc, m) => acc + pick(m), 0);
+  const netIncome = sum((m) => m.netIncome);
+  const backEndGross = sum((m) => m.fiGross + m.serviceGross + m.partsGross + m.holdbackIncome);
+  return { label: `${franchiseKey}#${seed}`, months: months.length, netIncome, backEndGross, metalOnlyNetIncome: netIncome - backEndGross };
+}
+
 async function loadSave(page: Page, saveJson: string): Promise<void> {
   await page.addInitScript((json) => {
     window.addEventListener("beforeunload", (e) => e.stopImmediatePropagation(), true);
@@ -276,5 +313,14 @@ test.describe("Rooftop dealership smoke tests", () => {
     await expect(page.getByText("The books balance exactly.")).toBeVisible();
 
     expect(consoleErrors).toEqual([]);
+  });
+
+  test("a store that only moves metal loses money, while the whole store stays profitable", () => {
+    test.setTimeout(120_000);
+    const results = [1, 2, 3].flatMap((seed) => [buildMetalOnlyScenario(seed, "toyota"), buildMetalOnlyScenario(seed, "bmw")]);
+    for (const r of results) {
+      expect(r.netIncome, `${r.label}: whole-store net income over ${r.months} months`).toBeGreaterThan(0);
+      expect(r.metalOnlyNetIncome, `${r.label}: front-end-only net income over ${r.months} months`).toBeLessThan(0);
+    }
   });
 });
