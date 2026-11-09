@@ -1,5 +1,11 @@
 # Rooftop
 
+> **Dependency-free TypeScript.** Plain TypeScript compiled by `tsc` to ES
+> modules that the browser loads directly from `index.html`: no framework,
+> no bundler, and no runtime dependencies. The only packages are dev tools
+> (the TypeScript compiler, and Playwright for the e2e tests). Nothing is
+> fetched from a CDN.
+
 A realistic car dealership simulation, playable entirely in the browser.
 
 You start as a salaried **General Manager** hired to run one rooftop — no
